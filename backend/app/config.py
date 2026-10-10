@@ -23,14 +23,10 @@ class Settings(BaseSettings):
         return "development"
     
     # Seeding on startup: Optional[bool]
-    # If None, defaults to True in development/testing, and False in production.
+    # - None (unset): seed reference data only if the database is empty (sectors count == 0)
+    # - True: explicitly force seeding on every startup
+    # - False: explicitly disable seeding on startup
     SEED_ON_STARTUP: Union[bool, None] = None
-
-    @property
-    def should_seed_on_startup(self) -> bool:
-        if self.SEED_ON_STARTUP is not None:
-            return self.SEED_ON_STARTUP
-        return self.ENVIRONMENT != "production"
     
     # CORS origins: can be passed as JSON array or comma-separated string
     BACKEND_CORS_ORIGINS: Union[List[str], str] = [

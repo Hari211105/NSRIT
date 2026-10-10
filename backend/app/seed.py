@@ -1092,3 +1092,42 @@ def seed_demo_data():
     finally:
         db.close()
 
+
+def seed_on_startup_if_needed():
+    """
+    Evaluates whether to seed database on application startup:
+    1. If SEED_ON_STARTUP is explicitly True: forces seeding (reference data + demo learner in dev/test).
+    2. If SEED_ON_STARTUP is explicitly False: skips seeding entirely.
+    3. If SEED_ON_STARTUP is None (unset):
+       - Checks if sectors table has any records.
+       - If empty (count == 0): seeds reference data (sectors, roles, competencies, courses, questions, resources).
+       - If not empty: skips seeding to prevent unnecessary boot overhead.
+    """
+    if settings.SEED_ON_STARTUP is False:
+        print("[Startup Seeder] SEED_ON_STARTUP=False: skipping database seeding.")
+        return False
+
+    if settings.SEED_ON_STARTUP is True:
+        print("[Startup Seeder] SEED_ON_STARTUP=True: forcing database seeding on startup.")
+        seed_demo_data()
+        return True
+
+    # SEED_ON_STARTUP is unset (None): check if database is empty
+    db = SessionLocal()
+    try:
+        sectors_count = db.query(Sector).count()
+    except Exception as exc:
+        print(f"[Startup Seeder] Warning: could not query sectors table ({exc}). Skipping auto-seed.")
+        return False
+    finally:
+        db.close()
+
+    if sectors_count == 0:
+        print("[Startup Seeder] SEED_ON_STARTUP unset and database is empty (0 sectors): seeding reference catalog data.")
+        seed_demo_data()
+        return True
+    else:
+        print(f"[Startup Seeder] SEED_ON_STARTUP unset and database already populated ({sectors_count} sectors): skipping seeding.")
+        return False
+
+

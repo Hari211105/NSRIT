@@ -21,12 +21,14 @@ if settings.ENVIRONMENT != "production":
 
 # ---------------------------------------------------------------
 # Seed reference and demo data on startup
-# In development/testing: runs automatically (idempotent, skips existing records).
-# In production: skipped by default unless explicitly enabled via SEED_ON_STARTUP=true.
+# Behavior driven by seed_on_startup_if_needed():
+# - SEED_ON_STARTUP unset: seeds reference data if database is empty (0 sectors); skips if already populated.
+# - SEED_ON_STARTUP=true: forces seeding on every startup.
+# - SEED_ON_STARTUP=false: skips seeding entirely.
+# Demo user (demo@statlearn.local) is NEVER created when ENVIRONMENT=production.
 # ---------------------------------------------------------------
-if settings.should_seed_on_startup:
-    from app.seed import seed_demo_data
-    seed_demo_data()
+from app.seed import seed_on_startup_if_needed
+seed_on_startup_if_needed()
 
 # ---------------------------------------------------------------
 # FastAPI application

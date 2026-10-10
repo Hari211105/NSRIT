@@ -72,23 +72,15 @@ def test_environment_normalization():
 
 
 def test_seed_on_startup_configuration():
-    """Verify SEED_ON_STARTUP defaults and explicit overrides."""
-    # Defaults: True in dev/test, False in production
-    s_dev = Settings(ENVIRONMENT="development")
-    assert s_dev.should_seed_on_startup is True
+    """Verify SEED_ON_STARTUP parsing and defaults."""
+    s_default = Settings()
+    assert s_default.SEED_ON_STARTUP is None
 
-    s_test = Settings(ENVIRONMENT="testing")
-    assert s_test.should_seed_on_startup is True
+    s_forced = Settings(SEED_ON_STARTUP=True)
+    assert s_forced.SEED_ON_STARTUP is True
 
-    s_prod = Settings(ENVIRONMENT="production")
-    assert s_prod.should_seed_on_startup is False
-
-    # Explicit overrides
-    s_prod_forced = Settings(ENVIRONMENT="production", SEED_ON_STARTUP=True)
-    assert s_prod_forced.should_seed_on_startup is True
-
-    s_dev_disabled = Settings(ENVIRONMENT="development", SEED_ON_STARTUP=False)
-    assert s_dev_disabled.should_seed_on_startup is False
+    s_disabled = Settings(SEED_ON_STARTUP=False)
+    assert s_disabled.SEED_ON_STARTUP is False
 
 
 def test_development_startup_with_default_secret():
@@ -165,5 +157,89 @@ def test_seed_demo_learner_omitted_in_production(monkeypatch):
         assert db.query(Course).count() > 0
     finally:
         db.close()
+
+
+def test_startup_seeding_paths(monkeypatch):
+    """
+    Test all 4 seeding paths on isolated in-memory databases:
+    1. production + SEED_ON_STARTUP unset + empty DB -> reference data seeded, no demo user
+    2. production + SEED_ON_STARTUP unset + already seeded DB -> no reseed
+    3. production + SEED_ON_STARTUP=false -> nothing seeded
+    4. development -> existing behaviour unchanged (both reference data and demo user seeded)
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    import app.seed as seed_module
+    from app.seed import seed_on_startup_if_needed, DEMO_LEARNER
+    from app.database import Base
+    from app.models import User, Sector
+    from app.config import settings
+
+    # --- Case 1: production + SEED_ON_STARTUP unset + empty DB ---
+    eng1 = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    sm1 = sessionmaker(autocommit=False, autoflush=False, bind=eng1)
+    Base.metadata.create_all(bind=eng1)
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(settings, "SEED_ON_STARTUP", None)
+    monkeypatch.setattr(seed_module, "SessionLocal", sm1)
+
+    seeded = seed_on_startup_if_needed()
+    assert seeded is True
+    db1 = sm1()
+    try:
+        assert db1.query(Sector).count() == 6
+        assert db1.query(User).filter_by(email=DEMO_LEARNER["email"]).first() is None
+    finally:
+        db1.close()
+
+    # --- Case 2: production + SEED_ON_STARTUP unset + already seeded DB ---
+    # Running it again on the already-seeded DB should return False (no reseed)
+    reseeded = seed_on_startup_if_needed()
+    assert reseeded is False
+    db1 = sm1()
+    try:
+        assert db1.query(Sector).count() == 6
+    finally:
+        db1.close()
+
+    # --- Case 3: production + SEED_ON_STARTUP=false ---
+    eng3 = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    sm3 = sessionmaker(autocommit=False, autoflush=False, bind=eng3)
+    Base.metadata.create_all(bind=eng3)
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(settings, "SEED_ON_STARTUP", False)
+    monkeypatch.setattr(seed_module, "SessionLocal", sm3)
+
+    seeded3 = seed_on_startup_if_needed()
+    assert seeded3 is False
+    db3 = sm3()
+    try:
+        assert db3.query(Sector).count() == 0
+    finally:
+        db3.close()
+
+    # --- Case 4: development -> existing behaviour unchanged ---
+    eng4 = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    sm4 = sessionmaker(autocommit=False, autoflush=False, bind=eng4)
+    Base.metadata.create_all(bind=eng4)
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+    monkeypatch.setattr(settings, "SEED_ON_STARTUP", None)
+    monkeypatch.setattr(seed_module, "SessionLocal", sm4)
+
+    seeded4 = seed_on_startup_if_needed()
+    assert seeded4 is True
+    db4 = sm4()
+    try:
+        assert db4.query(Sector).count() == 6
+        # In development, demo learner is seeded
+        demo_user = db4.query(User).filter_by(email=DEMO_LEARNER["email"]).first()
+        assert demo_user is not None
+        assert demo_user.email == "demo@statlearn.local"
+    finally:
+        db4.close()
+
 
 
