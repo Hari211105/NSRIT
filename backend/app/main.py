@@ -6,14 +6,21 @@ import app.models  # noqa: F401
 from app.routes import roles, competencies, learner, gaps, catalog, recommendations, documents, diagnostic, auth, sectors, courses
 
 # ---------------------------------------------------------------
-# Create all database tables on startup (safe to run repeatedly),
-# then add any columns newer than an existing database.
+# Security Validation: Refuse startup in production if secret is insecure
+# ---------------------------------------------------------------
+settings.validate_production_security()
+
+# ---------------------------------------------------------------
+# Create database tables and ensure schema
+# In development/local, Base.metadata.create_all is executed.
+# In production, Alembic handles migrations, while create_all remains safe and idempotent.
 # ---------------------------------------------------------------
 Base.metadata.create_all(bind=engine)
 ensure_schema()
 
 # ---------------------------------------------------------------
-# Seed demo data on startup
+# Seed demo data on startup (idempotent, skips existing records)
+# In production, seed only if DB is completely fresh
 # ---------------------------------------------------------------
 from app.seed import seed_demo_data
 seed_demo_data()

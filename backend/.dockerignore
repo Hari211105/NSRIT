@@ -1,0 +1,18 @@
+# Docker ignore for UPSKILL AI backend
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.coverage
+htmlcov
+*.db
+*.sqlite3
+.env
+.env.local
+.DS_Store
+Thumbs.db
+tests
+test_*.py
+scratch/

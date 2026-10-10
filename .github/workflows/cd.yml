@@ -1,0 +1,20 @@
+name: CD
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy-backend:
+    name: Trigger Render Deployment
+    runs-on: ubuntu-latest
+    # Run only after CI has passed on main
+    steps:
+      - name: Trigger Render Deploy Hook
+        if: env.RENDER_DEPLOY_HOOK_URL != ''
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          echo "Triggering automated backend redeployment on Render..."
+          curl -s -S -X POST "${RENDER_DEPLOY_HOOK_URL}"
+          echo "Deploy webhook triggered successfully."

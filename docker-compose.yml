@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database Service
+  postgres:
+    image: postgres:16-alpine
+    container_name: upskill_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-upskill_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-upskill_secret_pw}
+      POSTGRES_DB: ${POSTGRES_DB:-upskill_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-upskill_user} -d ${POSTGRES_DB:-upskill_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # UPSKILL AI FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: upskill_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: "development"
+      PORT: 8000
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-upskill_user}:${POSTGRES_PASSWORD:-upskill_secret_pw}@postgres:5432/${POSTGRES_DB:-upskill_db}"
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-upskill-dev-secret-change-in-production}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      BACKEND_CORS_ORIGINS: '["http://localhost:5173","http://127.0.0.1:5173","http://localhost:3000"]'
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  postgres_data:
+    driver: local
