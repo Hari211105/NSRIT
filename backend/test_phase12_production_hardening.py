@@ -71,6 +71,26 @@ def test_environment_normalization():
         s2.validate_production_security()
 
 
+def test_seed_on_startup_configuration():
+    """Verify SEED_ON_STARTUP defaults and explicit overrides."""
+    # Defaults: True in dev/test, False in production
+    s_dev = Settings(ENVIRONMENT="development")
+    assert s_dev.should_seed_on_startup is True
+
+    s_test = Settings(ENVIRONMENT="testing")
+    assert s_test.should_seed_on_startup is True
+
+    s_prod = Settings(ENVIRONMENT="production")
+    assert s_prod.should_seed_on_startup is False
+
+    # Explicit overrides
+    s_prod_forced = Settings(ENVIRONMENT="production", SEED_ON_STARTUP=True)
+    assert s_prod_forced.should_seed_on_startup is True
+
+    s_dev_disabled = Settings(ENVIRONMENT="development", SEED_ON_STARTUP=False)
+    assert s_dev_disabled.should_seed_on_startup is False
+
+
 def test_development_startup_with_default_secret():
     """Verify development mode works out-of-the-box with default key."""
     dev_settings = Settings(

@@ -20,11 +20,13 @@ if settings.ENVIRONMENT != "production":
     ensure_schema()
 
 # ---------------------------------------------------------------
-# Seed demo data on startup (idempotent, skips existing records)
-# In production, seed only if DB is completely fresh
+# Seed reference and demo data on startup
+# In development/testing: runs automatically (idempotent, skips existing records).
+# In production: skipped by default unless explicitly enabled via SEED_ON_STARTUP=true.
 # ---------------------------------------------------------------
-from app.seed import seed_demo_data
-seed_demo_data()
+if settings.should_seed_on_startup:
+    from app.seed import seed_demo_data
+    seed_demo_data()
 
 # ---------------------------------------------------------------
 # FastAPI application
