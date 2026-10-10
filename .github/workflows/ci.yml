@@ -31,6 +31,14 @@ jobs:
           pip install -r backend/requirements.txt
           pip install pytest
 
+      - name: Verify database migrations and schema drift
+        working-directory: backend
+        env:
+          DATABASE_URL: "sqlite:///ci_alembic_test.db"
+        run: |
+          alembic upgrade head
+          alembic check
+
       - name: Run Pytest test suite
         working-directory: backend
         env:
