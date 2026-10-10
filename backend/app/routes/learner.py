@@ -43,10 +43,17 @@ def get_learner_profile(
         "id": learner.id,
         "name": learner.name,
         "email": learner.email,
+        "learning_mode": getattr(learner, "learning_mode", "ROLE") or "ROLE",
         "role": {
             "id": learner.role.id,
             "name": learner.role.name,
         } if learner.role else None,
+        "course": {
+            "id": learner.course.id,
+            "code": learner.course.code,
+            "name": learner.course.name,
+            "category": learner.course.category,
+        } if getattr(learner, "course", None) else None,
         "is_demo": learner.is_demo,
         # Phase 8 - onboarding profile fields.
         "designation": learner.designation,
@@ -66,25 +73,19 @@ def get_learner_competencies(
 ):
     """
     Return the authenticated learner's current competency profile alongside
-    the required levels for their assigned role.
-    Gap calculation is NOT performed here (planned for Phase 3).
+    the required levels for their assigned role or course.
     """
     learner = current_user
 
-    # Build a lookup of required levels from the role
-    required_lookup = {}
-    priority_lookup = {}
-    if learner.role:
-        role_mappings = db.query(RoleCompetency).filter(
-            RoleCompetency.role_id == learner.role_id
-        ).all()
-        for rm in role_mappings:
-            required_lookup[rm.competency_id] = rm.required_level
-            priority_lookup[rm.competency_id] = rm.priority
+    # Build lookup of required levels using shared framework helper
+    from app.services.learner_framework import get_learner_framework
+    required_lookup, priority_lookup, target_comp_ids = get_learner_framework(db, learner)
 
     result = []
     for lc in learner.learner_competencies:
         comp = lc.competency
+        if target_comp_ids and comp.id not in target_comp_ids:
+            continue
         required = required_lookup.get(comp.id)
         priority = priority_lookup.get(comp.id)
         result.append({
@@ -98,10 +99,18 @@ def get_learner_competencies(
             "priority": priority,
         })
 
+    target_name = (
+        learner.course.name if getattr(learner, "learning_mode", "ROLE") == "GOAL" and learner.course
+        else (learner.role.name if learner.role else None)
+    )
+
     return {
         "learner_id": learner.id,
         "learner_name": learner.name,
+        "learning_mode": getattr(learner, "learning_mode", "ROLE") or "ROLE",
         "role": learner.role.name if learner.role else None,
+        "course": learner.course.name if getattr(learner, "course", None) else None,
+        "target_name": target_name,
         "competencies": result,
     }
 

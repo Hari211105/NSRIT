@@ -8,7 +8,7 @@ one demo learner, and the learner's initial competency profile.
 import json
 from datetime import datetime
 from app.database import SessionLocal
-from app.models import Role, Competency, RoleCompetency, User, LearnerCompetency, LearningResource, DiagnosticQuestion, Sector
+from app.models import Role, Competency, RoleCompetency, User, LearnerCompetency, LearningResource, DiagnosticQuestion, Sector, Course, CourseCompetency
 from app.security import hash_password
 from app.multi_sector_data import (
     SECTORS_DATA,
@@ -18,6 +18,7 @@ from app.multi_sector_data import (
     MULTI_SECTOR_LEARNING_RESOURCES,
     MULTI_SECTOR_DIAGNOSTIC_QUESTIONS,
 )
+from app.course_data import COURSES_DATA, COURSE_LEARNING_RESOURCES
 
 
 # ---------------------------------------------------------------
@@ -976,7 +977,7 @@ def seed_demo_data():
                     existing.current_level = lc_data["current_level"]
 
         # 6. Create learning catalog resources (skip existing by title)
-        all_resources = DEMO_LEARNING_RESOURCES + MULTI_SECTOR_LEARNING_RESOURCES
+        all_resources = DEMO_LEARNING_RESOURCES + MULTI_SECTOR_LEARNING_RESOURCES + COURSE_LEARNING_RESOURCES
         for res_data in all_resources:
             comp = competency_map.get(res_data["competency_name"])
             if not comp:
@@ -1024,6 +1025,51 @@ def seed_demo_data():
                 )
                 db.add(dq)
                 print(f"  Created diagnostic question: {q_data['question'][:60]}... ({q_data['difficulty']})")
+
+        # 8. Create demo courses and course-competency mappings (Phase 10)
+        for c_data in COURSES_DATA:
+            existing_course = db.query(Course).filter_by(code=c_data["code"]).first()
+            if not existing_course:
+                course = Course(
+                    code=c_data["code"],
+                    name=c_data["name"],
+                    description=c_data["description"],
+                    category=c_data["category"],
+                    level_hint=c_data.get("level_hint", "Beginner"),
+                    is_demo=True,
+                    active=True,
+                )
+                db.add(course)
+                db.flush()
+                print(f"  Created demo course: {course.name} ({course.category})")
+
+                for comp_spec in c_data.get("competencies", []):
+                    comp = competency_map.get(comp_spec["competency_name"])
+                    if comp:
+                        ccm = CourseCompetency(
+                            course_id=course.id,
+                            competency_id=comp.id,
+                            required_level=comp_spec["required_level"],
+                            priority=comp_spec.get("priority", "MEDIUM"),
+                        )
+                        db.add(ccm)
+            else:
+                # Ensure mappings exist if course was already created
+                for comp_spec in c_data.get("competencies", []):
+                    comp = competency_map.get(comp_spec["competency_name"])
+                    if comp:
+                        existing_ccm = db.query(CourseCompetency).filter_by(
+                            course_id=existing_course.id,
+                            competency_id=comp.id,
+                        ).first()
+                        if not existing_ccm:
+                            ccm = CourseCompetency(
+                                course_id=existing_course.id,
+                                competency_id=comp.id,
+                                required_level=comp_spec["required_level"],
+                                priority=comp_spec.get("priority", "MEDIUM"),
+                            )
+                            db.add(ccm)
 
         db.commit()
         print("Demo data seeding complete.")

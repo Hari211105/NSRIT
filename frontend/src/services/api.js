@@ -150,6 +150,13 @@ export const apiClient = {
   /** Get roles for a specific sector */
   getSectorRoles: (sectorId) => request(`/sectors/${sectorId}/roles`),
 
+  /** Get active courses (optional category filter) */
+  getCourses: (category) =>
+    request(category ? `/courses?category=${encodeURIComponent(category)}` : '/courses'),
+
+  /** Get single course with mapped competencies */
+  getCourse: (courseId) => request(`/courses/${courseId}`),
+
   /** Get all roles */
   getRoles: () => request('/roles'),
 

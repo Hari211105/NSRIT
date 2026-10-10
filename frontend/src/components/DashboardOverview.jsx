@@ -130,10 +130,14 @@ export function DashboardOverview({ onNavigate }) {
         <div className="hero-banner-main">
           <p className="hero-greeting">Welcome to UPSKILL AI,</p>
           <h1 className="hero-name">
-            {user?.name || 'Officer'}
+            {user?.name || 'Learner'}
           </h1>
           <p className="hero-subtext">
-            Continue your learning journey and strengthen India's Official Statistical System.
+            {user?.learning_mode === 'GOAL' && user?.course?.name
+              ? `Enrolled in ${user.course.name}. Progress through targeted modules and build core competencies.`
+              : (user?.role?.name
+                ? `Mapped position: ${user.role.name}. Continue your personalized learning journey.`
+                : 'Empowering learners with tailored skill diagnostics and competency recommendations.')}
           </p>
         </div>
 
@@ -163,9 +167,11 @@ export function DashboardOverview({ onNavigate }) {
                 Welcome to UPSKILL AI
               </h2>
               <p className="learner-email">
-                {user?.role?.name
-                  ? `Position mapped: ${user.role.name}`
-                  : 'Your professional profile is ready.'}
+                {user?.learning_mode === 'GOAL' && user?.course?.name
+                  ? `Course enrolled: ${user.course.name}`
+                  : (user?.role?.name
+                    ? `Position mapped: ${user.role.name}`
+                    : 'Your learning profile is ready.')}
               </p>
             </div>
             <span className="demo-badge">
@@ -178,7 +184,7 @@ export function DashboardOverview({ onNavigate }) {
               Complete your competency assessment to discover your strengths and skill gaps.
             </p>
             <p style={{ fontSize: '0.85rem' }}>
-              Your {user?.role?.name ? `${user.role.name} ` : ''}competency
+              Your {user?.learning_mode === 'GOAL' && user?.course?.name ? `${user.course.name} ` : (user?.role?.name ? `${user.role.name} ` : '')}competency
               framework, personalised gap analysis and learning recommendations
               unlock right after the assessment.
             </p>

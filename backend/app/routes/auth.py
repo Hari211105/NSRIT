@@ -66,12 +66,21 @@ class RoleOut(BaseModel):
     name: str
 
 
+class CourseOut(BaseModel):
+    id: int
+    code: str
+    name: str
+    category: str
+
+
 class UserOut(BaseModel):
     """User info as returned to clients. Never includes the password hash."""
     id: int
     name: str
     email: str
+    learning_mode: str = "ROLE"
     role: Optional[RoleOut] = None
+    course: Optional[CourseOut] = None
     is_demo: bool
     # Phase 8 - onboarding profile fields (None until onboarding completes).
     designation: Optional[str] = None
@@ -98,7 +107,14 @@ def serialize_user(user: User) -> dict:
         "id": user.id,
         "name": user.name,
         "email": user.email,
+        "learning_mode": getattr(user, "learning_mode", "ROLE") or "ROLE",
         "role": {"id": user.role.id, "name": user.role.name} if user.role else None,
+        "course": {
+            "id": user.course.id,
+            "code": user.course.code,
+            "name": user.course.name,
+            "category": user.course.category,
+        } if getattr(user, "course", None) else None,
         "is_demo": user.is_demo,
         # Phase 8 - onboarding profile (None until completed).
         "designation": user.designation,
@@ -223,14 +239,16 @@ def get_me(current_user: User = Depends(get_current_user)):
 
 
 # ------------------------------------------------------------------
-# Phase 8 - new-user onboarding (position / designation + profile)
+# Phase 8 & 10 - new-user onboarding (ROLE vs GOAL mode)
 # ------------------------------------------------------------------
 
 class CompleteOnboardingRequest(BaseModel):
-    """Payload for POST /auth/complete-onboarding (Phase 8)."""
-    role_id: int = Field(..., description="Selected position (framework role) id.")
-    designation: str = Field(..., min_length=2, max_length=200)
-    department: str = Field(..., min_length=2, max_length=200)
+    """Payload for POST /auth/complete-onboarding (Phases 8 & 10)."""
+    learning_mode: Optional[str] = Field("ROLE", description="'ROLE' or 'GOAL'")
+    role_id: Optional[int] = Field(None, description="Selected position (framework role) id.")
+    course_id: Optional[int] = Field(None, description="Selected course id.")
+    designation: Optional[str] = Field(None, max_length=200)
+    department: Optional[str] = Field(None, max_length=200)
     assignment: Optional[str] = Field(None, max_length=2000)
     education: Optional[str] = Field(None, max_length=2000)
     work_experience: Optional[str] = Field(None, max_length=2000)
@@ -244,14 +262,25 @@ def get_onboarding_status(
 ):
     """
     Tell the frontend whether this user must complete onboarding, plus the list
-    of selectable positions. A user is onboarded once they have a position
-    (role) AND the profile_completed flag set.
+    of selectable positions, sectors, and courses.
     """
+    from app.models import Course
     sectors = db.query(Sector).order_by(Sector.display_order.asc(), Sector.id.asc()).all()
     roles = db.query(Role).order_by(Role.id.asc()).all()
+    courses = db.query(Course).filter(Course.active == True).order_by(Course.id.asc()).all()
+
+    has_target = (
+        (getattr(current_user, "learning_mode", "ROLE") == "GOAL" and current_user.course_id is not None)
+        or (current_user.role_id is not None)
+    )
+
     return {
-        "profile_completed": bool(current_user.profile_completed) and current_user.role_id is not None,
+        "profile_completed": bool(current_user.profile_completed) and has_target,
+        "learning_mode": getattr(current_user, "learning_mode", "ROLE") or "ROLE",
         "has_role": current_user.role_id is not None,
+        "has_course": current_user.course_id is not None,
+        "role_id": current_user.role_id,
+        "course_id": current_user.course_id,
         "designation": current_user.designation,
         "sectors": [
             {
@@ -273,6 +302,18 @@ def get_onboarding_status(
             }
             for r in roles
         ],
+        "courses": [
+            {
+                "id": c.id,
+                "code": c.code,
+                "name": c.name,
+                "description": c.description,
+                "category": c.category,
+                "level_hint": c.level_hint or "Beginner",
+                "is_demo": bool(c.is_demo),
+            }
+            for c in courses
+        ],
     }
 
 
@@ -283,39 +324,91 @@ def complete_onboarding(
     db: Session = Depends(get_db),
 ):
     """
-    Complete onboarding: persist the selected position (role) and professional
-    profile, and mark the profile complete.
-
-    Position changes after onboarding: the position is written again with a
-    fresh profile_completed=False ONLY when the role actually changes, so the
-    frontend can offer a re-assessment for the new framework. The learner's
-    previously assessed competency levels are preserved (levels never decrease
-    and the same competency may still be required), but the changed flag makes
-    the state explicit and lets the UI prompt for the new role's assessment.
+    Complete onboarding in either ROLE or GOAL mode:
+    - Rejects requests that provide NEITHER or BOTH role_id and course_id.
+    - For ROLE mode: requires designation and department.
+    - For GOAL mode: skips employee-only fields.
     """
-    role = db.query(Role).filter(Role.id == payload.role_id).first()
-    if not role:
+    from app.models import Course
+
+    has_role = payload.role_id is not None
+    has_course = payload.course_id is not None
+
+    # Validation: reject if neither or both are provided
+    if not has_role and not has_course:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Role with ID {payload.role_id} not found.",
+            detail="Must provide either role_id or course_id for onboarding.",
+        )
+    if has_role and has_course:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot provide both role_id and course_id. Choose either role or course.",
         )
 
-    role_changed = current_user.role_id is not None and current_user.role_id != role.id
+    mode = "ROLE" if has_role else "GOAL"
 
-    current_user.role_id = role.id
-    current_user.designation = payload.designation.strip()
-    current_user.department = payload.department.strip()
-    current_user.assignment = (payload.assignment or "").strip() or None
-    current_user.education = (payload.education or "").strip() or None
-    current_user.work_experience = (payload.work_experience or "").strip() or None
-    current_user.previous_training = (payload.previous_training or "").strip() or None
+    if has_role:
+        # Validate role exists
+        role = db.query(Role).filter(Role.id == payload.role_id).first()
+        if not role:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Role with ID {payload.role_id} not found.",
+            )
+        # Designation and department required in role mode
+        if not payload.designation or len(payload.designation.strip()) < 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Designation is required for role-based onboarding.",
+            )
+        if not payload.department or len(payload.department.strip()) < 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Department / Office is required for role-based onboarding.",
+            )
 
-    if role_changed:
-        # Position changed after onboarding: keep assessed levels but signal
-        # that the new role's framework has not been assessed yet.
-        current_user.profile_completed = False
+        role_changed = current_user.role_id is not None and current_user.role_id != role.id
+        current_user.learning_mode = "ROLE"
+        current_user.role_id = role.id
+        current_user.course_id = None
+        current_user.designation = payload.designation.strip()
+        current_user.department = payload.department.strip()
+        current_user.assignment = (payload.assignment or "").strip() or None
+        current_user.education = (payload.education or "").strip() or None
+        current_user.work_experience = (payload.work_experience or "").strip() or None
+        current_user.previous_training = (payload.previous_training or "").strip() or None
+
+        if role_changed:
+            current_user.profile_completed = False
+        else:
+            current_user.profile_completed = True
+
     else:
-        current_user.profile_completed = True
+        # GOAL mode (course-based)
+        course = db.query(Course).filter(Course.id == payload.course_id, Course.active == True).first()
+        if not course:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Course with ID {payload.course_id} not found.",
+            )
+
+        course_changed = current_user.course_id is not None and current_user.course_id != course.id
+        current_user.learning_mode = "GOAL"
+        current_user.course_id = course.id
+        current_user.role_id = None
+        # Optional profile fields
+        current_user.designation = (payload.designation or "").strip() or None
+        current_user.department = (payload.department or "").strip() or None
+        current_user.assignment = (payload.assignment or "").strip() or None
+        current_user.education = (payload.education or "").strip() or None
+        current_user.work_experience = (payload.work_experience or "").strip() or None
+        current_user.previous_training = (payload.previous_training or "").strip() or None
+
+        if course_changed:
+            current_user.profile_completed = False
+        else:
+            current_user.profile_completed = True
 
     db.commit()
     db.refresh(current_user)

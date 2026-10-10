@@ -127,26 +127,16 @@ def start_diagnostic(
 
     learner = current_user
 
-    # Get competencies required for the learner's role
-    if not learner.role_id:
+    # Get competencies required for the learner's pathway (ROLE or GOAL)
+    from app.services.learner_framework import get_learner_framework
+    required_lookup, priority_lookup, competency_ids = get_learner_framework(db, learner)
+
+    if not competency_ids:
+        path_name = "course" if getattr(learner, "learning_mode", "ROLE") == "GOAL" else "role"
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Learner has no assigned role. Cannot start diagnostic assessment.",
+            detail=f"Learner has no assigned {path_name} competencies. Cannot start diagnostic assessment.",
         )
-
-    role_mappings = (
-        db.query(RoleCompetency)
-        .filter(RoleCompetency.role_id == learner.role_id)
-        .all()
-    )
-
-    if not role_mappings:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No competencies mapped to the learner's role.",
-        )
-
-    competency_ids = [rm.competency_id for rm in role_mappings]
 
     # Load available diagnostic questions for these competencies
     questions = (
@@ -162,7 +152,7 @@ def start_diagnostic(
     if not questions:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No diagnostic questions available for this role's competencies.",
+            detail="No diagnostic questions available for this learner's competencies.",
         )
 
     # Competency names for display (never used for scoring).

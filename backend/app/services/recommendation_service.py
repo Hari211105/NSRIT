@@ -61,11 +61,11 @@ def calculate_relevance_score(
     if gap >= 2:
         score += 10
 
-    # 5. Catalog source quality bonus (+5)
-    if resource.source == "IGOT_DEMO":
+    # 5. Catalog source quality bonus (+5 for recognized learning platforms)
+    if resource.source and ("DEMO" in resource.source or "IGOT" in resource.source or "SWAYAM" in resource.source or "NPTEL" in resource.source or "SKILL" in resource.source):
         score += 5
-    elif resource.source == "NSSTA_TPAC_DEMO":
-        score += 5
+    elif resource.source:
+        score += 3
 
     return score
 

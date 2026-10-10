@@ -72,6 +72,7 @@ class Competency(Base):
 
     # Relationships
     role_mappings        = relationship("RoleCompetency", back_populates="competency")
+    course_mappings      = relationship("CourseCompetency", back_populates="competency")
     learner_competencies = relationship("LearnerCompetency", back_populates="competency")
     learning_resources   = relationship("LearningResource", back_populates="competency")
 
@@ -95,6 +96,43 @@ class RoleCompetency(Base):
 
 
 # ------------------------------------------------------------------
+# Course (Phase 10 - Learning Goal Path)
+# ------------------------------------------------------------------
+
+class Course(Base):
+    __tablename__ = "courses"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    code        = Column(String(50), unique=True, nullable=False, index=True)
+    name        = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    category    = Column(String(50), nullable=False, default="TECHNICAL")  # TECHNICAL | NON_TECHNICAL
+    sector_id   = Column(Integer, ForeignKey("sectors.id"), nullable=True)
+    level_hint  = Column(String(50), default="Beginner")  # Beginner | Intermediate | Advanced
+    is_demo     = Column(Boolean, default=False)
+    active      = Column(Boolean, default=True)
+
+    # Relationships
+    sector              = relationship("Sector")
+    competency_mappings = relationship("CourseCompetency", back_populates="course")
+    users               = relationship("User", back_populates="course")
+
+
+class CourseCompetency(Base):
+    __tablename__ = "course_competencies"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    course_id      = Column(Integer, ForeignKey("courses.id"), nullable=False)
+    competency_id  = Column(Integer, ForeignKey("competencies.id"), nullable=False)
+    required_level = Column(Integer, nullable=False)  # 1–4
+    priority       = Column(String(20), default="MEDIUM")  # HIGH | MEDIUM | LOW
+
+    # Relationships
+    course     = relationship("Course", back_populates="competency_mappings")
+    competency = relationship("Competency", back_populates="course_mappings")
+
+
+# ------------------------------------------------------------------
 # User (Learner)
 # ------------------------------------------------------------------
 
@@ -112,10 +150,17 @@ class User(Base):
     hashed_password = Column(String(200), nullable=True, default=None)
 
     # ------------------------------------------------------------------
+    # Phase 10 - Learning Goal / Mode
+    # "ROLE" (existing role-based pathway) or "GOAL" (course-based pathway)
+    # ------------------------------------------------------------------
+    learning_mode   = Column(String(20), default="ROLE", nullable=False)
+    course_id       = Column(Integer, ForeignKey("courses.id"), nullable=True, default=None)
+
+    # ------------------------------------------------------------------
     # Phase 8 - learner onboarding profile (collected once, after signup,
     # before any assessment). role_id above is the selected POSITION; these
     # columns hold the rest of the professional profile. All nullable so
-    # pre-onboarding accounts and upgraded databases keep working.
+    # pre-onboarding accounts, upgraded databases and GOAL learners keep working.
     # ------------------------------------------------------------------
     designation        = Column(String(200), nullable=True, default=None)
     department         = Column(String(200), nullable=True, default=None)
@@ -123,11 +168,12 @@ class User(Base):
     education          = Column(Text, nullable=True, default=None)
     work_experience    = Column(Text, nullable=True, default=None)
     previous_training  = Column(Text, nullable=True, default=None)
-    # False until the learner completes onboarding (position selection).
+    # False until the learner completes onboarding.
     profile_completed  = Column(Boolean, default=False)
 
     # Relationships
     role                 = relationship("Role", back_populates="users")
+    course               = relationship("Course", back_populates="users")
     learner_competencies = relationship("LearnerCompetency", back_populates="user")
 
 
