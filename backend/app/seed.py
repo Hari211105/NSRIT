@@ -7,6 +7,7 @@ one demo learner, and the learner's initial competency profile.
 """
 import json
 from datetime import datetime
+from app.config import settings
 from app.database import SessionLocal
 from app.models import Role, Competency, RoleCompetency, User, LearnerCompetency, LearningResource, DiagnosticQuestion, Sector, Course, CourseCompetency
 from app.security import hash_password
@@ -923,58 +924,63 @@ def seed_demo_data():
             if ms_role_id is not None:
                 _apply_role_mappings(ms_role_id, ms_mappings)
 
-        # 4. Create demo learner (skip if already exists)
-        learner = db.query(User).filter_by(email=DEMO_LEARNER["email"]).first()
-        if not learner:
-            learner = User(
-                name=DEMO_LEARNER["name"],
-                email=DEMO_LEARNER["email"],
-                is_demo=DEMO_LEARNER["is_demo"],
-                role_id=role.id,
-                # Phase 7A - give the demo learner a login password so the auth
-                # login endpoint works out of the box.
-                hashed_password=hash_password(DEMO_LEARNER_PASSWORD),
-                # Phase 8 - the demo learner is fully onboarded from the start.
-                designation="Statistical / Data Officer",
-                department="National Statistics Office (Demo)",
-                profile_completed=DEMO_LEARNER_PROFILE_COMPLETED,
-            )
-            db.add(learner)
-            db.flush()
-            print(f"  Created learner: {learner.name} ({learner.email})")
-        else:
-            # Phase 7A - backfill a password on a pre-existing demo learner that
-            # was created before the hashed_password column existed.
-            if not learner.hashed_password:
-                learner.hashed_password = hash_password(DEMO_LEARNER_PASSWORD)
-                print(f"  Backfilled password for existing learner: {learner.email}")
-            # Phase 8 - pre-existing demo learner rows must not be pushed into
-            # the onboarding flow; they keep their seeded competency profile.
-            if not learner.profile_completed:
-                learner.profile_completed = DEMO_LEARNER_PROFILE_COMPLETED
-                learner.designation = learner.designation or "Statistical / Data Officer"
-                print(f"  Backfilled onboarding flag for existing learner: {learner.email}")
-            print(f"  Learner already exists: {learner.email}")
-
-        # 5. Create learner competency records (skip existing)
-        for lc_data in DEMO_LEARNER_COMPETENCIES:
-            comp = competency_map[lc_data["competency_name"]]
-            existing = db.query(LearnerCompetency).filter_by(
-                user_id=learner.id, competency_id=comp.id
-            ).first()
-            if not existing:
-                lc = LearnerCompetency(
-                    user_id=learner.id,
-                    competency_id=comp.id,
-                    current_level=lc_data["current_level"],
+        # 4 & 5. Create demo learner and initial competency records
+        # Restricted strictly to non-production environments (development / testing).
+        # In production, learners must be registered legitimately; no hardcoded demo accounts.
+        if settings.ENVIRONMENT.lower() != "production":
+            learner = db.query(User).filter_by(email=DEMO_LEARNER["email"]).first()
+            if not learner:
+                learner = User(
+                    name=DEMO_LEARNER["name"],
+                    email=DEMO_LEARNER["email"],
+                    is_demo=DEMO_LEARNER["is_demo"],
+                    role_id=role.id,
+                    # Phase 7A - give the demo learner a login password so the auth
+                    # login endpoint works out of the box.
+                    hashed_password=hash_password(DEMO_LEARNER_PASSWORD),
+                    # Phase 8 - the demo learner is fully onboarded from the start.
+                    designation="Statistical / Data Officer",
+                    department="National Statistics Office (Demo)",
+                    profile_completed=DEMO_LEARNER_PROFILE_COMPLETED,
                 )
-                db.add(lc)
-                print(f"  Set learner level: {comp.name} -> Level {lc_data['current_level']}")
+                db.add(learner)
+                db.flush()
+                print(f"  Created learner: {learner.name} ({learner.email})")
             else:
-                # Update the level to the seed value if it's different
-                if existing.current_level != lc_data["current_level"]:
-                    print(f"  Updating learner level: {comp.name} from Level {existing.current_level} to Level {lc_data['current_level']}")
-                    existing.current_level = lc_data["current_level"]
+                # Phase 7A - backfill a password on a pre-existing demo learner that
+                # was created before the hashed_password column existed.
+                if not learner.hashed_password:
+                    learner.hashed_password = hash_password(DEMO_LEARNER_PASSWORD)
+                    print(f"  Backfilled password for existing learner: {learner.email}")
+                # Phase 8 - pre-existing demo learner rows must not be pushed into
+                # the onboarding flow; they keep their seeded competency profile.
+                if not learner.profile_completed:
+                    learner.profile_completed = DEMO_LEARNER_PROFILE_COMPLETED
+                    learner.designation = learner.designation or "Statistical / Data Officer"
+                    print(f"  Backfilled onboarding flag for existing learner: {learner.email}")
+                print(f"  Learner already exists: {learner.email}")
+
+            # 5. Create learner competency records (skip existing)
+            for lc_data in DEMO_LEARNER_COMPETENCIES:
+                comp = competency_map[lc_data["competency_name"]]
+                existing = db.query(LearnerCompetency).filter_by(
+                    user_id=learner.id, competency_id=comp.id
+                ).first()
+                if not existing:
+                    lc = LearnerCompetency(
+                        user_id=learner.id,
+                        competency_id=comp.id,
+                        current_level=lc_data["current_level"],
+                    )
+                    db.add(lc)
+                    print(f"  Set learner level: {comp.name} -> Level {lc_data['current_level']}")
+                else:
+                    # Update the level to the seed value if it's different
+                    if existing.current_level != lc_data["current_level"]:
+                        print(f"  Updating learner level: {comp.name} from Level {existing.current_level} to Level {lc_data['current_level']}")
+                        existing.current_level = lc_data["current_level"]
+        else:
+            print("  Skipping demo learner creation in production environment.")
 
         # 6. Create learning catalog resources (skip existing by title)
         all_resources = DEMO_LEARNING_RESOURCES + MULTI_SECTOR_LEARNING_RESOURCES + COURSE_LEARNING_RESOURCES

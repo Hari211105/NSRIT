@@ -104,7 +104,10 @@ For complete, step-by-step instructions on deploying the frontend to **Vercel**,
 
 ---
 
-## 📊 Demo Credentials
+## 📊 Demo Credentials (Development & Testing)
+
+> [!NOTE]
+> The demo account below is automatically seeded in **development and testing environments only** (`ENVIRONMENT=development`). In **production**, hardcoded demo accounts are never created; all users register through the secure signup flow.
 
 | Account | Email | Password | Pathway |
 |---|---|---|---|

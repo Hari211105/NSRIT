@@ -46,7 +46,7 @@ Once Render connects to your PostgreSQL database, run the Alembic migration:
    alembic upgrade head
    ```
 2. The initial migration `0001_initial_schema` will create all tables, indexes, and constraints.
-3. UPSKILL AI startup logic will seed demo baseline catalogs and courses idempotently.
+3. UPSKILL AI startup logic seeds reference catalogs (sectors, framework roles, competencies, courses, resources, scenario & MCQ questions). In `production` mode, the hardcoded demo account (`demo@statlearn.local`) is safely skipped.
 
 ---
 

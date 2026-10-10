@@ -92,3 +92,40 @@ def test_database_url_normalization():
 
     s3 = Settings(DATABASE_URL="sqlite:///./statlearn_ai.db")
     assert s3.DATABASE_URL.startswith("sqlite:///")
+
+
+def test_seed_demo_learner_omitted_in_production(monkeypatch):
+    """Verify seed_demo_data does not create demo@statlearn.local when ENVIRONMENT is production."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    import app.seed as seed_module
+    from app.seed import seed_demo_data, DEMO_LEARNER
+    from app.database import Base
+    from app.models import User
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    
+    # Use an isolated in-memory database for this test
+    temp_engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    temp_session_local = sessionmaker(autocommit=False, autoflush=False, bind=temp_engine)
+    Base.metadata.create_all(bind=temp_engine)
+    
+    monkeypatch.setattr(seed_module, "SessionLocal", temp_session_local)
+
+    # Run seeder under production environment setting
+    seed_demo_data()
+
+    # Verify user was NOT created in this database
+    db = temp_session_local()
+    try:
+        user = db.query(User).filter_by(email=DEMO_LEARNER["email"]).first()
+        assert user is None, "Demo learner must not be created when ENVIRONMENT is production"
+        # Reference sectors, roles, courses should still be seeded
+        from app.models import Sector, Course
+        assert db.query(Sector).count() > 0
+        assert db.query(Course).count() > 0
+    finally:
+        db.close()
+
+
