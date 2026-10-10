@@ -93,6 +93,7 @@ alembic current
 | `JWT_SECRET_KEY` | Backend | `upskill-dev-secret...` | In `production`, server **refuses to start** unless a strong key is set |
 | `DATABASE_URL` | Backend | `sqlite:///./statlearn_ai.db` | Use `postgresql+psycopg://...` in production |
 | `BACKEND_CORS_ORIGINS` | Backend | `["http://localhost:5173"]` | JSON array or comma-separated list of allowed frontend origins |
+| `SEED_ON_STARTUP` | Backend | `unset` / `true` / `false` | Unset = seeds reference data only if DB is empty; `true` = forces seed; `false` = never |
 | `OPENROUTER_API_KEY` | Backend | `""` | OpenRouter API Key for document quiz generation |
 | `VITE_API_BASE_URL` | Frontend | `http://127.0.0.1:8000/api/v1` | Backend URL with `/api/v1` prefix |
 
@@ -104,7 +105,10 @@ For complete, step-by-step instructions on deploying the frontend to **Vercel**,
 
 ---
 
-## 📊 Demo Credentials
+## 📊 Demo Credentials (Development & Testing)
+
+> [!NOTE]
+> The demo account below is automatically seeded in **development and testing environments only** (`ENVIRONMENT=development`). In **production**, hardcoded demo accounts are never created; all users register through the secure signup flow.
 
 | Account | Email | Password | Pathway |
 |---|---|---|---|

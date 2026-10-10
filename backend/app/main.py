@@ -11,19 +11,24 @@ from app.routes import roles, competencies, learner, gaps, catalog, recommendati
 settings.validate_production_security()
 
 # ---------------------------------------------------------------
-# Create database tables and ensure schema
-# In development/local, Base.metadata.create_all is executed.
-# In production, Alembic handles migrations, while create_all remains safe and idempotent.
+# Database Schema Initialization
+# In production, migrations are strictly applied via Alembic before startup.
+# In development/testing, create_all and ensure_schema run automatically.
 # ---------------------------------------------------------------
-Base.metadata.create_all(bind=engine)
-ensure_schema()
+if settings.ENVIRONMENT != "production":
+    Base.metadata.create_all(bind=engine)
+    ensure_schema()
 
 # ---------------------------------------------------------------
-# Seed demo data on startup (idempotent, skips existing records)
-# In production, seed only if DB is completely fresh
+# Seed reference and demo data on startup
+# Behavior driven by seed_on_startup_if_needed():
+# - SEED_ON_STARTUP unset: seeds reference data if database is empty (0 sectors); skips if already populated.
+# - SEED_ON_STARTUP=true: forces seeding on every startup.
+# - SEED_ON_STARTUP=false: skips seeding entirely.
+# Demo user (demo@statlearn.local) is NEVER created when ENVIRONMENT=production.
 # ---------------------------------------------------------------
-from app.seed import seed_demo_data
-seed_demo_data()
+from app.seed import seed_on_startup_if_needed
+seed_on_startup_if_needed()
 
 # ---------------------------------------------------------------
 # FastAPI application

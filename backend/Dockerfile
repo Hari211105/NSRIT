@@ -1,5 +1,5 @@
 # Build stage / Production Dockerfile for UPSKILL AI FastAPI Backend
-FROM python:3.11-slim as base
+FROM python:3.11-slim AS base
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -26,7 +26,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY app/ ./app/
 COPY alembic/ ./alembic/
 COPY alembic.ini .
-COPY PROJECT_CONTEXT.md .
 
 # Adjust permissions for non-root user
 RUN chown -R appuser:appgroup /app
@@ -41,4 +40,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:${PORT}/api/v1/health || exit 1
 
 # Launch uvicorn dynamically bound to $PORT (required by Render/Railway/Fly.io)
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Runs alembic migrations first if running against PostgreSQL in production
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

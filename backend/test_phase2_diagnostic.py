@@ -641,6 +641,15 @@ def test_new_assessments_only_bounded_steps():
 
 def test_existing_quiz_evidence_unchanged():
     print("Testing existing quiz evidence behavior is unchanged...")
+    # Ensure at least one diagnostic assessment exists in the session
+    db = SessionLocal()
+    try:
+        diag_count = db.query(DiagnosticAssessment).count()
+    finally:
+        db.close()
+    if diag_count == 0:
+        start_diagnostic()
+
     # The legacy /me/evidence endpoint still serves quiz evidence only.
     response = client.get("/api/v1/me/evidence")
     assert response.status_code == 200, response.text
@@ -669,6 +678,17 @@ def test_health_and_history_conventions():
     assert health.status_code == 200
     assert health.json()["status"] == "ok"
     assert health.json()["application"] == "UPSKILL AI"
+
+    # Ensure at least one diagnostic assessment exists for history check
+    db = SessionLocal()
+    try:
+        diag_count = db.query(DiagnosticAssessment).filter(
+            DiagnosticAssessment.learner_id == LEARNER_ID
+        ).count()
+    finally:
+        db.close()
+    if diag_count == 0:
+        start_diagnostic()
 
     history = client.get("/api/v1/diagnostic/history")
     assert history.status_code == 200

@@ -14,6 +14,19 @@ class Settings(BaseSettings):
     
     # Environment mode: "development" | "production" | "testing"
     ENVIRONMENT: str = "development"
+
+    @field_validator("ENVIRONMENT", mode="before")
+    @classmethod
+    def normalize_environment(cls, v: str) -> str:
+        if isinstance(v, str):
+            return v.strip().lower()
+        return "development"
+    
+    # Seeding on startup: Optional[bool]
+    # - None (unset): seed reference data only if the database is empty (sectors count == 0)
+    # - True: explicitly force seeding on every startup
+    # - False: explicitly disable seeding on startup
+    SEED_ON_STARTUP: Union[bool, None] = None
     
     # CORS origins: can be passed as JSON array or comma-separated string
     BACKEND_CORS_ORIGINS: Union[List[str], str] = [
@@ -72,8 +85,7 @@ class Settings(BaseSettings):
         Validate security settings.
         Refuses to run in production if JWT_SECRET_KEY is unset or equals the dev default.
         """
-        env_lower = (self.ENVIRONMENT or "development").strip().lower()
-        if env_lower == "production":
+        if self.ENVIRONMENT == "production":
             if not self.JWT_SECRET_KEY or self.JWT_SECRET_KEY == DEV_DEFAULT_JWT_SECRET:
                 raise RuntimeError(
                     "SECURITY ERROR: Application is set to ENVIRONMENT=production but JWT_SECRET_KEY "
