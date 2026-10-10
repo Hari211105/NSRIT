@@ -53,6 +53,24 @@ def test_production_startup_success_with_strong_secret():
     prod_settings.validate_production_security()
 
 
+def test_environment_normalization():
+    """Verify ENVIRONMENT is normalized once (strip + lowercase)."""
+    s1 = Settings(ENVIRONMENT="Production")
+    assert s1.ENVIRONMENT == "production"
+
+    s2 = Settings(ENVIRONMENT=" production ")
+    assert s2.ENVIRONMENT == "production"
+
+    s3 = Settings(ENVIRONMENT="  Development  ")
+    assert s3.ENVIRONMENT == "development"
+
+    # Verify that capitalized or whitespace-padded production values enforce security
+    with pytest.raises(RuntimeError):
+        s1.validate_production_security()
+    with pytest.raises(RuntimeError):
+        s2.validate_production_security()
+
+
 def test_development_startup_with_default_secret():
     """Verify development mode works out-of-the-box with default key."""
     dev_settings = Settings(

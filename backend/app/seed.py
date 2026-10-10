@@ -927,7 +927,7 @@ def seed_demo_data():
         # 4 & 5. Create demo learner and initial competency records
         # Restricted strictly to non-production environments (development / testing).
         # In production, learners must be registered legitimately; no hardcoded demo accounts.
-        if settings.ENVIRONMENT.lower() != "production":
+        if settings.ENVIRONMENT != "production":
             learner = db.query(User).filter_by(email=DEMO_LEARNER["email"]).first()
             if not learner:
                 learner = User(
