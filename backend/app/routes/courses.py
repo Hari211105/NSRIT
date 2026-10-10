@@ -35,6 +35,7 @@ class CourseBrief(BaseModel):
     category: str
     sector_id: Optional[int] = None
     level_hint: Optional[str] = "Beginner"
+    estimated_hours: int = 20
     is_demo: bool
     competency_count: int = 0
 
@@ -50,6 +51,7 @@ class CourseDetail(BaseModel):
     category: str
     sector_id: Optional[int] = None
     level_hint: Optional[str] = "Beginner"
+    estimated_hours: int = 20
     is_demo: bool
     competencies: List[CompetencyBrief]
 
@@ -60,16 +62,26 @@ class CourseDetail(BaseModel):
 @router.get("", response_model=List[CourseBrief])
 def list_courses(
     category: Optional[str] = Query(None, description="Filter by 'TECHNICAL' or 'NON_TECHNICAL'"),
+    search: Optional[str] = Query(None, description="Search query matching course name or description"),
+    sector_id: Optional[int] = Query(None, description="Filter by sector id"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     List all active courses. Protected by JWT authentication.
-    Allows filtering by category ('TECHNICAL' or 'NON_TECHNICAL').
+    Supports filtering by category, sector_id, and free-text search.
     """
     query = db.query(Course).filter(Course.active == True)
     if category:
         query = query.filter(Course.category == category.upper())
+    if sector_id:
+        query = query.filter(Course.sector_id == sector_id)
+    if search and search.strip():
+        term = f"%{search.strip().lower()}%"
+        from sqlalchemy import func
+        query = query.filter(
+            func.lower(Course.name).like(term) | func.lower(Course.description).like(term)
+        )
 
     courses = query.order_by(Course.id.asc()).all()
     results = []
@@ -88,6 +100,7 @@ def list_courses(
                 category=c.category,
                 sector_id=c.sector_id,
                 level_hint=c.level_hint or "Beginner",
+                estimated_hours=getattr(c, "estimated_hours", 20) or 20,
                 is_demo=bool(c.is_demo),
                 competency_count=comp_count,
             )
@@ -135,6 +148,7 @@ def get_course(
         category=course.category,
         sector_id=course.sector_id,
         level_hint=course.level_hint or "Beginner",
+        estimated_hours=getattr(course, "estimated_hours", 20) or 20,
         is_demo=bool(course.is_demo),
         competencies=comp_list,
     )

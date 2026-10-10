@@ -198,7 +198,7 @@ export function Login() {
               </div>
             </div>
             <p className="card-brand-subtitle">
-              AI-Driven Competency Intelligence Platform for India's Official Statistical System
+              AI-Driven Competency Intelligence &amp; Personalized Learning Platform
             </p>
 
             {/* Main Headline Inside Card */}
@@ -206,10 +206,10 @@ export function Login() {
               <h2 className="card-headline">
                 Build Your Skills<br />
                 for a Stronger<br />
-                <span className="card-headline-blue">Statistical India</span>
+                <span className="card-headline-blue">Future &amp; Career</span>
               </h2>
               <p className="card-tagline">
-                Assess · Learn · Grow · Make an Impact
+                Assess · Learn · Grow · Excel
               </p>
             </div>
 

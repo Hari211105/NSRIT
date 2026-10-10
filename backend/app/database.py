@@ -49,6 +49,15 @@ _ADDED_COLUMNS = {
         # Phase 9 - multi-sector expansion
         "sector_id": "INTEGER",
     },
+    "courses": {
+        # Phase 11 - estimated hours
+        "estimated_hours": "INTEGER DEFAULT 20",
+    },
+    "diagnostic_questions": {
+        # Phase 11 - MCQ vs SCENARIO questions & course scoping
+        "question_type": "VARCHAR(20) DEFAULT 'MCQ'",
+        "course_id": "INTEGER",
+    },
 }
 
 

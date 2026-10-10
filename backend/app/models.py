@@ -107,10 +107,11 @@ class Course(Base):
     name        = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
     category    = Column(String(50), nullable=False, default="TECHNICAL")  # TECHNICAL | NON_TECHNICAL
-    sector_id   = Column(Integer, ForeignKey("sectors.id"), nullable=True)
-    level_hint  = Column(String(50), default="Beginner")  # Beginner | Intermediate | Advanced
-    is_demo     = Column(Boolean, default=False)
-    active      = Column(Boolean, default=True)
+    sector_id       = Column(Integer, ForeignKey("sectors.id"), nullable=True)
+    level_hint      = Column(String(50), default="Beginner")  # Beginner | Intermediate | Advanced
+    estimated_hours = Column(Integer, default=20, nullable=False)
+    is_demo         = Column(Boolean, default=False)
+    active          = Column(Boolean, default=True)
 
     # Relationships
     sector              = relationship("Sector")
@@ -354,6 +355,8 @@ class DiagnosticQuestion(Base):
 
     id              = Column(Integer, primary_key=True, index=True)
     competency_id   = Column(Integer, ForeignKey("competencies.id"), nullable=False, index=True)
+    course_id       = Column(Integer, ForeignKey("courses.id"), nullable=True, index=True)
+    question_type   = Column(String(20), nullable=False, default="MCQ")  # MCQ | SCENARIO
     question        = Column(Text, nullable=False)
     options         = Column(Text, nullable=False)   # JSON-encoded array of 4 option strings
     correct_option  = Column(Integer, nullable=False) # 0-based index into options
@@ -365,6 +368,7 @@ class DiagnosticQuestion(Base):
 
     # Relationships
     competency = relationship("Competency")
+    course     = relationship("Course")
 
 
 # ------------------------------------------------------------------

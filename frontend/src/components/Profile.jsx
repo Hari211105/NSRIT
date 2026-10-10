@@ -12,20 +12,20 @@ export function Profile() {
       <div className="section-header">
         <div>
           <h2 className="learner-name">Learner Profile</h2>
-          <p className="learner-email">Official identity & role parameters</p>
+          <p className="learner-email">Identity &amp; learning pathway parameters</p>
         </div>
-        <span className="badge-sih">Cadre Record</span>
+        <span className="badge-sih">{user?.learning_mode === 'GOAL' ? 'Goal Pathway' : 'Professional Record'}</span>
       </div>
 
       <div className="learner-header" style={{ marginBottom: '24px' }}>
         <div className="learner-avatar">
-          {user?.name?.charAt(0) || 'D'}
+          {user?.name?.charAt(0) || 'L'}
         </div>
         <div>
           <h2 className="learner-name">{user?.name}</h2>
           <p className="learner-role">
-            <span className="role-tag">Designation</span>
-            {user?.role?.name || 'Statistical Officer'}
+            <span className="role-tag">{user?.learning_mode === 'GOAL' ? 'Enrolled Course' : 'Role'}</span>
+            {user?.learning_mode === 'GOAL' ? (user?.course?.name || 'Selected Course') : (user?.role?.name || 'Professional Role')}
           </p>
           <p className="learner-email">{user?.email}</p>
         </div>
@@ -33,24 +33,30 @@ export function Profile() {
 
       <div className="profile-fields-grid">
         <div className="profile-field-item">
-          <span className="field-label">Official Email</span>
+          <span className="field-label">Email Address</span>
           <span className="field-value">{user?.email}</span>
         </div>
         <div className="profile-field-item">
-          <span className="field-label">Assigned Role</span>
-          <span className="field-value">{user?.role?.name || 'Statistical Officer'}</span>
+          <span className="field-label">{user?.learning_mode === 'GOAL' ? 'Target Course' : 'Assigned Role'}</span>
+          <span className="field-value">
+            {user?.learning_mode === 'GOAL'
+              ? (user?.course?.name || 'General Learning Track')
+              : (user?.role?.name || 'Professional Role')}
+          </span>
         </div>
         <div className="profile-field-item">
-          <span className="field-label">Account Category</span>
-          <span className="field-value">{user?.is_demo ? 'Official Demonstration Account' : 'Standard Cadre Account'}</span>
+          <span className="field-label">Learning Pathway</span>
+          <span className="field-value">
+            {user?.learning_mode === 'GOAL' ? 'Subject & Skill Mastery (Self-paced)' : 'Role Competency Development'}
+          </span>
         </div>
         <div className="profile-field-item">
           <span className="field-label">Department / Organization</span>
-          <span className="field-value">{user?.department || 'Ministry of Statistics & Programme Implementation (MoSPI)'}</span>
+          <span className="field-value">{user?.department || (user?.learning_mode === 'GOAL' ? 'Independent Learner' : 'Organization Member')}</span>
         </div>
         {user?.assignment && (
           <div className="profile-field-item">
-            <span className="field-label">Current Assignment</span>
+            <span className="field-label">Current Focus / Assignment</span>
             <span className="field-value">{user.assignment}</span>
           </div>
         )}
@@ -62,7 +68,7 @@ export function Profile() {
         )}
         {user?.work_experience && (
           <div className="profile-field-item">
-            <span className="field-label">Work Experience</span>
+            <span className="field-label">Experience</span>
             <span className="field-value">{user.work_experience}</span>
           </div>
         )}
@@ -75,7 +81,7 @@ export function Profile() {
       </div>
 
       <p className="phase-note" style={{ marginTop: '24px' }}>
-        Role competencies and required target levels are managed centrally by the statistical system administrator.
+        Target competency benchmarks and required levels are dynamically calibrated to accelerate your personalized mastery.
       </p>
     </div>
   )

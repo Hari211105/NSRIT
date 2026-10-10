@@ -179,9 +179,9 @@ function DiagnosticStart({ onStart, loading, history }) {
         </h3>
         <p style={{ fontSize: '0.9rem', color: '#cbd5e1', lineHeight: '1.6', marginBottom: '16px' }}>
           This diagnostic assessment evaluates your competency levels across all
-          areas required for your role. It uses <strong>difficulty-weighted
+          areas required for your enrolled pathway. It uses <strong>difficulty-weighted
           scoring</strong> — harder questions carry more weight, ensuring your
-          competency levels reflect true proficiency.
+          competency levels reflect true practical proficiency.
         </p>
         <div className="diagnostic-info-grid">
           <div className="diagnostic-info-item">
@@ -300,18 +300,28 @@ function DiagnosticRunner({
         />
       </div>
 
-      {/* Difficulty badge */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+      {/* Question Type & Difficulty badges */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
         <span className={`difficulty-badge difficulty-${question.difficulty?.toLowerCase()}`}>
           {diffInfo.label} · {diffInfo.weight}
+        </span>
+        <span className={`question-type-badge ${question.question_type === 'SCENARIO' ? 'badge-scenario' : 'badge-mcq'}`}>
+          {question.question_type === 'SCENARIO' ? '🎭 Practical Scenario' : '📝 Standard MCQ'}
         </span>
         <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
           Competency #{question.competency_id}
         </span>
       </div>
 
-      {/* Question */}
-      <p className="quiz-question-text">{question.question}</p>
+      {/* Question / Scenario prompt */}
+      {question.question_type === 'SCENARIO' ? (
+        <div className="scenario-container">
+          <div className="scenario-header-tag">SCENARIO CASE STUDY</div>
+          <p className="scenario-prompt-text">{question.question}</p>
+        </div>
+      ) : (
+        <p className="quiz-question-text">{question.question}</p>
+      )}
 
       {/* Options */}
       <div className="quiz-options" role="group" aria-label="Answer options">

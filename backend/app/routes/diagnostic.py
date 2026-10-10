@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import (
     Competency,
+    Course,
     DiagnosticAssessment,
     DiagnosticQuestion,
     LearnerCompetency,
@@ -69,6 +70,7 @@ def _serialize_question(q: DiagnosticQuestion) -> dict:
     return {
         "id": q.id,
         "competency_id": q.competency_id,
+        "question_type": getattr(q, "question_type", "MCQ") or "MCQ",
         "question": q.question,
         "options": json.loads(q.options),
         "correct_option": q.correct_option,
@@ -87,6 +89,7 @@ def _serialize_question_for_learner(q: DiagnosticQuestion, competency_name: str 
     payload = {
         "question_id": q.id,
         "competency_id": q.competency_id,
+        "question_type": getattr(q, "question_type", "MCQ") or "MCQ",
         "question": q.question,
         "options": json.loads(q.options),
         "difficulty": q.difficulty,
@@ -138,16 +141,37 @@ def start_diagnostic(
             detail=f"Learner has no assigned {path_name} competencies. Cannot start diagnostic assessment.",
         )
 
-    # Load available diagnostic questions for these competencies
-    questions = (
-        db.query(DiagnosticQuestion)
-        .filter(
-            DiagnosticQuestion.competency_id.in_(competency_ids),
-            DiagnosticQuestion.active == True,
-        )
-        .order_by(DiagnosticQuestion.competency_id, DiagnosticQuestion.difficulty)
-        .all()
+    # Load available diagnostic questions for these competencies.
+    # If the learner is in GOAL mode and enrolled in a non-technical course,
+    # prioritize scenario questions.
+    # If in ROLE mode (such as officers/professionals), default to standard role questions (MCQ)
+    # ensuring full backward compatibility with role diagnostic tests.
+    is_goal_mode = getattr(learner, "learning_mode", "ROLE") == "GOAL"
+    
+    query = db.query(DiagnosticQuestion).filter(
+        DiagnosticQuestion.competency_id.in_(competency_ids),
+        DiagnosticQuestion.active == True,
     )
+
+    if is_goal_mode and learner.course_id:
+        course = db.query(Course).filter(Course.id == learner.course_id).first()
+        if course and course.category == "NON_TECHNICAL":
+            # For non-technical courses, load SCENARIO questions (or course-specific questions)
+            scenario_qs = query.filter(DiagnosticQuestion.question_type == "SCENARIO").all()
+            if scenario_qs:
+                questions = scenario_qs
+            else:
+                questions = query.order_by(DiagnosticQuestion.competency_id, DiagnosticQuestion.difficulty).all()
+        else:
+            # Technical courses prefer MCQ
+            questions = query.order_by(DiagnosticQuestion.competency_id, DiagnosticQuestion.difficulty).all()
+    else:
+        # Standard ROLE mode: exclude course-specific scenario questions so role assessments
+        # retain their standard 3 questions per competency (EASY, MEDIUM, HARD)
+        role_qs = query.filter(DiagnosticQuestion.question_type == "MCQ").order_by(
+            DiagnosticQuestion.competency_id, DiagnosticQuestion.difficulty
+        ).all()
+        questions = role_qs if role_qs else query.order_by(DiagnosticQuestion.competency_id, DiagnosticQuestion.difficulty).all()
 
     if not questions:
         raise HTTPException(
@@ -306,6 +330,7 @@ def get_diagnostic(
                 {
                     "question_id": q["id"],
                     "competency_id": q["competency_id"],
+                    "question_type": q.get("question_type", "MCQ") or "MCQ",
                     "question": q["question"],
                     "options": q["options"],
                     "difficulty": q["difficulty"],

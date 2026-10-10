@@ -18,7 +18,7 @@ from app.multi_sector_data import (
     MULTI_SECTOR_LEARNING_RESOURCES,
     MULTI_SECTOR_DIAGNOSTIC_QUESTIONS,
 )
-from app.course_data import COURSES_DATA, COURSE_LEARNING_RESOURCES
+from app.course_data import COURSES_DATA, COURSE_LEARNING_RESOURCES, SCENARIO_DIAGNOSTIC_QUESTIONS
 
 
 # ---------------------------------------------------------------
@@ -1003,7 +1003,7 @@ def seed_demo_data():
                 print(f"  Created learning resource: {lr.title} ({lr.source})")
 
         # 7. Create diagnostic questions (skip existing by question text)
-        all_questions = DEMO_DIAGNOSTIC_QUESTIONS + MULTI_SECTOR_DIAGNOSTIC_QUESTIONS
+        all_questions = DEMO_DIAGNOSTIC_QUESTIONS + MULTI_SECTOR_DIAGNOSTIC_QUESTIONS + SCENARIO_DIAGNOSTIC_QUESTIONS
         for q_data in all_questions:
             comp = competency_map.get(q_data["competency_name"])
             if not comp:
@@ -1014,6 +1014,7 @@ def seed_demo_data():
             if not existing:
                 dq = DiagnosticQuestion(
                     competency_id=comp.id,
+                    question_type=q_data.get("question_type", "MCQ"),
                     question=q_data["question"],
                     options=json.dumps(q_data["options"]),
                     correct_option=q_data["correct_option"],
@@ -1024,7 +1025,11 @@ def seed_demo_data():
                     created_at=datetime.utcnow().isoformat(),
                 )
                 db.add(dq)
-                print(f"  Created diagnostic question: {q_data['question'][:60]}... ({q_data['difficulty']})")
+                print(f"  Created diagnostic question: {q_data['question'][:60]}... ({q_data['difficulty']} - {dq.question_type})")
+            else:
+                # Update question_type if existing row does not have it set
+                if q_data.get("question_type") and existing.question_type != q_data["question_type"]:
+                    existing.question_type = q_data["question_type"]
 
         # 8. Create demo courses and course-competency mappings (Phase 10)
         for c_data in COURSES_DATA:

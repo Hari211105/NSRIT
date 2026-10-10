@@ -58,8 +58,9 @@ export function Onboarding() {
 
   // Learning Mode: 'ROLE' | 'GOAL'
   const [learningMode, setLearningMode] = useState('ROLE')
-  // Course category filter for GOAL mode: 'ALL' | 'TECHNICAL' | 'NON_TECHNICAL'
+  // Course category filter and search for GOAL mode: 'ALL' | 'TECHNICAL' | 'NON_TECHNICAL'
   const [courseCategoryFilter, setCourseCategoryFilter] = useState('ALL')
+  const [courseSearchTerm, setCourseSearchTerm] = useState('')
 
   // Selections
   const [selectedSectorId, setSelectedSectorId] = useState(null)
@@ -115,10 +116,17 @@ export function Onboarding() {
     return r.sector_id === selectedSectorId
   })
 
-  // Filter courses based on selected category
+  // Filter courses based on selected category and search term
   const filteredCourses = courses.filter((c) => {
-    if (courseCategoryFilter === 'ALL') return true
-    return c.category === courseCategoryFilter
+    const matchesCat = courseCategoryFilter === 'ALL' || c.category === courseCategoryFilter
+    if (!matchesCat) return false
+    if (!courseSearchTerm.trim()) return true
+    const term = courseSearchTerm.toLowerCase().trim()
+    return (
+      (c.name && c.name.toLowerCase().includes(term)) ||
+      (c.description && c.description.toLowerCase().includes(term)) ||
+      (c.code && c.code.toLowerCase().includes(term))
+    )
   })
 
   const handleSectorSelect = (sectorId) => {
@@ -390,53 +398,95 @@ export function Onboarding() {
                       <span className="detail-label">Select Course / Subject *</span>
                     </div>
 
-                    <div className="course-filter-bar">
-                      <button
-                        type="button"
-                        className={`filter-tab-btn ${courseCategoryFilter === 'ALL' ? 'filter-tab-active' : ''}`}
-                        onClick={() => setCourseCategoryFilter('ALL')}
-                      >
-                        All Subjects ({courses.length})
-                      </button>
-                      <button
-                        type="button"
-                        className={`filter-tab-btn ${courseCategoryFilter === 'TECHNICAL' ? 'filter-tab-active' : ''}`}
-                        onClick={() => setCourseCategoryFilter('TECHNICAL')}
-                      >
-                        Technical ({courses.filter((c) => c.category === 'TECHNICAL').length})
-                      </button>
-                      <button
-                        type="button"
-                        className={`filter-tab-btn ${courseCategoryFilter === 'NON_TECHNICAL' ? 'filter-tab-active' : ''}`}
-                        onClick={() => setCourseCategoryFilter('NON_TECHNICAL')}
-                      >
-                        Non-Technical ({courses.filter((c) => c.category === 'NON_TECHNICAL').length})
-                      </button>
+                    <div className="course-search-filter-wrap">
+                      <div className="course-search-input-box">
+                        <span className="search-icon">🔍</span>
+                        <input
+                          type="text"
+                          className="course-search-input"
+                          placeholder="Search courses by title, topic, or keyword…"
+                          value={courseSearchTerm}
+                          onChange={(e) => setCourseSearchTerm(e.target.value)}
+                        />
+                        {courseSearchTerm && (
+                          <button
+                            type="button"
+                            className="search-clear-btn"
+                            onClick={() => setCourseSearchTerm('')}
+                            aria-label="Clear search"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="course-filter-bar">
+                        <button
+                          type="button"
+                          className={`filter-tab-btn ${courseCategoryFilter === 'ALL' ? 'filter-tab-active' : ''}`}
+                          onClick={() => setCourseCategoryFilter('ALL')}
+                        >
+                          All Subjects ({courses.length})
+                        </button>
+                        <button
+                          type="button"
+                          className={`filter-tab-btn ${courseCategoryFilter === 'TECHNICAL' ? 'filter-tab-active' : ''}`}
+                          onClick={() => setCourseCategoryFilter('TECHNICAL')}
+                        >
+                          Technical ({courses.filter((c) => c.category === 'TECHNICAL').length})
+                        </button>
+                        <button
+                          type="button"
+                          className={`filter-tab-btn ${courseCategoryFilter === 'NON_TECHNICAL' ? 'filter-tab-active' : ''}`}
+                          onClick={() => setCourseCategoryFilter('NON_TECHNICAL')}
+                        >
+                          Non-Technical ({courses.filter((c) => c.category === 'NON_TECHNICAL').length})
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="onboarding-courses-grid">
-                      {filteredCourses.map((crs) => {
-                        const isSelected = selectedCourseId === crs.id
-                        return (
-                          <button
-                            key={crs.id}
-                            type="button"
-                            className={`onboarding-course-card ${isSelected ? 'onboarding-course-selected' : ''}`}
-                            onClick={() => setSelectedCourseId(crs.id)}
-                            aria-pressed={isSelected}
-                          >
-                            <div className="course-card-header">
-                              <span className="course-cat-badge">
-                                {crs.category === 'TECHNICAL' ? '💻 TECHNICAL' : '💡 NON-TECHNICAL'}
-                              </span>
-                              <span className="course-level-tag">{crs.level_hint || 'All Levels'}</span>
-                            </div>
-                            <span className="course-card-name">{crs.name}</span>
-                            <span className="course-card-desc">{crs.description}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
+                    {filteredCourses.length === 0 ? (
+                      <div className="courses-empty-state">
+                        <p>No courses match "{courseSearchTerm}". Try clearing filters or searching for another term.</p>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => {
+                            setCourseSearchTerm('')
+                            setCourseCategoryFilter('ALL')
+                          }}
+                        >
+                          Reset Filters
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="onboarding-courses-grid">
+                        {filteredCourses.map((crs) => {
+                          const isSelected = selectedCourseId === crs.id
+                          return (
+                            <button
+                              key={crs.id}
+                              type="button"
+                              className={`onboarding-course-card ${isSelected ? 'onboarding-course-selected' : ''}`}
+                              onClick={() => setSelectedCourseId(crs.id)}
+                              aria-pressed={isSelected}
+                            >
+                              <div className="course-card-header">
+                                <span className={`course-cat-badge ${crs.category === 'TECHNICAL' ? 'cat-tech' : 'cat-non-tech'}`}>
+                                  {crs.category === 'TECHNICAL' ? '💻 TECHNICAL' : '💡 NON-TECHNICAL'}
+                                </span>
+                                <div className="course-meta-tags">
+                                  <span className="course-hours-tag">⏱ {crs.estimated_hours || 20} hrs</span>
+                                  <span className="course-level-tag">{crs.level_hint || 'All Levels'}</span>
+                                </div>
+                              </div>
+                              <span className="course-card-name">{crs.name}</span>
+                              <span className="course-card-desc">{crs.description}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
                     <span className="onboarding-hint">
                       Your chosen subject maps out targeted competencies, a diagnostic assessment, and structured learning modules.
                     </span>

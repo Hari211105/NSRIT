@@ -34,9 +34,9 @@ export function Certificates() {
       <div className="section-header">
         <div>
           <h2 className="learner-name">Certificates & Achievements</h2>
-          <p className="learner-email">Verified statistical competencies & assessment completions for {user?.name}</p>
+          <p className="learner-email">Verified competencies & assessment completions for {user?.name}</p>
         </div>
-        <span className="badge-sih">Official Records</span>
+        <span className="badge-sih">Verified Records</span>
       </div>
 
       <div className="summary-grid" style={{ marginBottom: '24px' }}>
@@ -63,10 +63,14 @@ export function Certificates() {
           </div>
           <div className="cert-details">
             <span className="cert-badge">COMPETENCY CERTIFICATE</span>
-            <h3 className="cert-title">National Statistical System Diagnostic</h3>
-            <p className="cert-meta">Ministry of Statistics & Programme Implementation · Issued to {user?.name}</p>
+            <h3 className="cert-title">
+              {user?.learning_mode === 'GOAL'
+                ? `${user?.course?.name || 'Subject'} Mastery Benchmark`
+                : `${user?.role?.name || 'Professional'} Competency Diagnostic`}
+            </h3>
+            <p className="cert-meta">UPSKILL AI Competency Verification · Issued to {user?.name}</p>
             <p className="cert-desc">
-              Demonstrated core foundational proficiency in official statistical data management, sampling methodologies, and survey administration.
+              Demonstrated foundational and intermediate proficiency across core diagnostic competencies with verified skill benchmark standards.
             </p>
           </div>
         </div>
