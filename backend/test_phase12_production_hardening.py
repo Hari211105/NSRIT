@@ -55,13 +55,13 @@ def test_production_startup_success_with_strong_secret():
 
 def test_environment_normalization():
     """Verify ENVIRONMENT is normalized once (strip + lowercase)."""
-    s1 = Settings(ENVIRONMENT="Production")
+    s1 = Settings(ENVIRONMENT="Production", JWT_SECRET_KEY=DEV_DEFAULT_JWT_SECRET)
     assert s1.ENVIRONMENT == "production"
 
-    s2 = Settings(ENVIRONMENT=" production ")
+    s2 = Settings(ENVIRONMENT=" production ", JWT_SECRET_KEY=DEV_DEFAULT_JWT_SECRET)
     assert s2.ENVIRONMENT == "production"
 
-    s3 = Settings(ENVIRONMENT="  Development  ")
+    s3 = Settings(ENVIRONMENT="  Development  ", JWT_SECRET_KEY=DEV_DEFAULT_JWT_SECRET)
     assert s3.ENVIRONMENT == "development"
 
     # Verify that capitalized or whitespace-padded production values enforce security
