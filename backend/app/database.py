@@ -41,7 +41,7 @@ _ADDED_COLUMNS = {
         "education": "TEXT",
         "work_experience": "TEXT",
         "previous_training": "TEXT",
-        "profile_completed": "BOOLEAN DEFAULT 0",
+        "profile_completed": "BOOLEAN DEFAULT FALSE",
         # Phase 10 - learning mode (ROLE or GOAL) and course_id
         "learning_mode": "VARCHAR(20) DEFAULT 'ROLE'",
         "course_id": "INTEGER",

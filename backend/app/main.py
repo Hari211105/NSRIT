@@ -11,12 +11,13 @@ from app.routes import roles, competencies, learner, gaps, catalog, recommendati
 settings.validate_production_security()
 
 # ---------------------------------------------------------------
-# Create database tables and ensure schema
-# In development/local, Base.metadata.create_all is executed.
-# In production, Alembic handles migrations, while create_all remains safe and idempotent.
+# Database Schema Initialization
+# In production, migrations are strictly applied via Alembic before startup.
+# In development/testing, create_all and ensure_schema run automatically.
 # ---------------------------------------------------------------
-Base.metadata.create_all(bind=engine)
-ensure_schema()
+if settings.ENVIRONMENT != "production":
+    Base.metadata.create_all(bind=engine)
+    ensure_schema()
 
 # ---------------------------------------------------------------
 # Seed demo data on startup (idempotent, skips existing records)

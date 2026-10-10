@@ -124,7 +124,7 @@ def upgrade() -> None:
         sa.Column('education', sa.Text(), nullable=True),
         sa.Column('work_experience', sa.Text(), nullable=True),
         sa.Column('previous_training', sa.Text(), nullable=True),
-        sa.Column('profile_completed', sa.Boolean(), nullable=True, server_default='0'),
+        sa.Column('profile_completed', sa.Boolean(), nullable=True, server_default=sa.text('false')),
         sa.ForeignKeyConstraint(['course_id'], ['courses.id'], name='fk_users_course_id'),
         sa.ForeignKeyConstraint(['role_id'], ['roles.id'], name='fk_users_role_id'),
         sa.PrimaryKeyConstraint('id'),
