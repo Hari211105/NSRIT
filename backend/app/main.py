@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import engine, Base, ensure_schema
 import app.models  # noqa: F401
-from app.routes import roles, competencies, learner, gaps, catalog, recommendations, documents, diagnostic, auth, sectors, courses, trainer, admin
+from app.routes import roles, competencies, learner, gaps, catalog, recommendations, documents, diagnostic, auth, sectors, courses, trainer, admin, lessons
 
 # ---------------------------------------------------------------
 # Security Validation: Refuse startup in production if secret is insecure
@@ -85,6 +85,7 @@ app.include_router(diagnostic.router,     prefix=PREFIX)
 app.include_router(auth.router,           prefix=PREFIX)
 app.include_router(sectors.router,        prefix=PREFIX)
 app.include_router(courses.router,        prefix=PREFIX)
+app.include_router(lessons.router,        prefix=PREFIX)
 app.include_router(trainer.router,        prefix=PREFIX)
 app.include_router(admin.router,          prefix=PREFIX)
 

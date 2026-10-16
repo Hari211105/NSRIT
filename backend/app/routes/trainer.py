@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Course, CourseCompetency, Competency, DiagnosticQuestion, User
+from app.models import Course, CourseCompetency, Competency, DiagnosticQuestion, User, CourseModule, Lesson, CoursePrerequisite
 from app.routes.auth import get_current_user, require_account_types
 
 
@@ -48,7 +48,38 @@ class TrainerCourseOut(BaseModel):
     review_note: Optional[str] = None
     competencies_count: int = 0
     questions_count: int = 0
+    modules_count: int = 0
+    lessons_count: int = 0
+    min_diagnostic_score: Optional[float] = None
     competencies: List[CompetencyItemOut] = []
+
+    class Config:
+        from_attributes = True
+
+
+class TrainerLessonOut(BaseModel):
+    id: int
+    module_id: int
+    title: str
+    lesson_type: str
+    body: str
+    order: int
+    estimated_minutes: int
+    is_demo: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class TrainerModuleOut(BaseModel):
+    id: int
+    course_id: int
+    title: str
+    description: Optional[str] = None
+    order: int
+    is_demo: bool = False
+    lessons_count: int = 0
+    lessons: List[TrainerLessonOut] = []
 
     class Config:
         from_attributes = True
@@ -62,6 +93,7 @@ class CourseCreateRequest(BaseModel):
     sector_id: Optional[int] = None
     level_hint: Optional[str] = "Beginner"
     estimated_hours: int = Field(20, ge=1, le=500)
+    min_diagnostic_score: Optional[float] = None
 
 
 class CourseUpdateRequest(BaseModel):
@@ -71,6 +103,56 @@ class CourseUpdateRequest(BaseModel):
     sector_id: Optional[int] = None
     level_hint: Optional[str] = None
     estimated_hours: Optional[int] = Field(None, ge=1, le=500)
+    min_diagnostic_score: Optional[float] = None
+
+
+class ModuleCreateRequest(BaseModel):
+    title: str = Field(..., min_length=2, max_length=200)
+    description: Optional[str] = None
+    order: Optional[int] = None
+
+
+class ModuleUpdateRequest(BaseModel):
+    title: Optional[str] = Field(None, min_length=2, max_length=200)
+    description: Optional[str] = None
+    order: Optional[int] = None
+
+
+class LessonCreateRequest(BaseModel):
+    title: str = Field(..., min_length=2, max_length=200)
+    lesson_type: str = Field("TEXT", description="'TEXT' | 'LINK' | 'VIDEO_URL'")
+    body: str = Field(..., min_length=1)
+    order: Optional[int] = None
+    estimated_minutes: int = Field(15, ge=1, le=600)
+
+
+class LessonUpdateRequest(BaseModel):
+    title: Optional[str] = Field(None, min_length=2, max_length=200)
+    lesson_type: Optional[str] = None
+    body: Optional[str] = None
+    order: Optional[int] = None
+    estimated_minutes: Optional[int] = Field(None, ge=1, le=600)
+
+
+class ReorderItem(BaseModel):
+    id: int
+    order: int
+
+
+class ReorderCurriculumRequest(BaseModel):
+    modules: Optional[List[ReorderItem]] = None
+    lessons: Optional[List[ReorderItem]] = None
+
+
+class PrerequisiteItemOut(BaseModel):
+    id: int
+    prerequisite_course_id: int
+    course_code: str
+    course_name: str
+
+
+class PrerequisiteAddRequest(BaseModel):
+    prerequisite_course_id: int
 
 
 class MapCompetencyRequest(BaseModel):
@@ -144,6 +226,17 @@ def serialize_trainer_course(course: Course, db: Session) -> TrainerCourseOut:
         .filter(DiagnosticQuestion.course_id == course.id)
         .count()
     )
+    mod_count = (
+        db.query(CourseModule)
+        .filter(CourseModule.course_id == course.id)
+        .count()
+    )
+    les_count = (
+        db.query(Lesson)
+        .join(CourseModule, Lesson.module_id == CourseModule.id)
+        .filter(CourseModule.course_id == course.id)
+        .count()
+    )
     return TrainerCourseOut(
         id=course.id,
         code=course.code,
@@ -160,6 +253,9 @@ def serialize_trainer_course(course: Course, db: Session) -> TrainerCourseOut:
         review_note=course.review_note,
         competencies_count=len(comp_list),
         questions_count=q_count,
+        modules_count=mod_count,
+        lessons_count=les_count,
+        min_diagnostic_score=getattr(course, "min_diagnostic_score", None),
         competencies=comp_list,
     )
 
@@ -243,6 +339,7 @@ def create_course(
         sector_id=payload.sector_id,
         level_hint=payload.level_hint or "Beginner",
         estimated_hours=payload.estimated_hours,
+        min_diagnostic_score=payload.min_diagnostic_score,
         status="DRAFT",
         created_by=current_user.id,
         is_demo=False,
@@ -307,6 +404,8 @@ def update_course(
         course.level_hint = payload.level_hint
     if payload.estimated_hours is not None:
         course.estimated_hours = payload.estimated_hours
+    if payload.min_diagnostic_score is not None:
+        course.min_diagnostic_score = payload.min_diagnostic_score
 
     db.commit()
     db.refresh(course)
@@ -600,3 +699,486 @@ def archive_course(
     db.commit()
     db.refresh(course)
     return serialize_trainer_course(course, db)
+
+
+# ------------------------------------------------------------------
+# Curriculum Authoring: Modules, Lessons, & Reordering
+# ------------------------------------------------------------------
+
+@router.get("/courses/{course_id}/curriculum", response_model=List[TrainerModuleOut])
+def get_trainer_curriculum(
+    course_id: int,
+    current_user: User = Depends(require_account_types("TRAINER", "ADMIN")),
+    db: Session = Depends(get_db),
+):
+    """Get all modules and lessons for a course."""
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Course with ID {course_id} not found.",
+        )
+    check_course_ownership(course, current_user)
+
+    modules = (
+        db.query(CourseModule)
+        .filter(CourseModule.course_id == course.id)
+        .order_by(CourseModule.order.asc(), CourseModule.id.asc())
+        .all()
+    )
+    result = []
+    for m in modules:
+        lessons = (
+            db.query(Lesson)
+            .filter(Lesson.module_id == m.id)
+            .order_by(Lesson.order.asc(), Lesson.id.asc())
+            .all()
+        )
+        lesson_outs = [
+            TrainerLessonOut(
+                id=l.id,
+                module_id=m.id,
+                title=l.title,
+                lesson_type=l.lesson_type or "TEXT",
+                body=l.body,
+                order=l.order,
+                estimated_minutes=l.estimated_minutes or 15,
+                is_demo=bool(l.is_demo),
+            )
+            for l in lessons
+        ]
+        result.append(
+            TrainerModuleOut(
+                id=m.id,
+                course_id=course.id,
+                title=m.title,
+                description=m.description,
+                order=m.order,
+                is_demo=bool(m.is_demo),
+                lessons_count=len(lesson_outs),
+                lessons=lesson_outs,
+            )
+        )
+    return result
+
+
+@router.post("/courses/{course_id}/modules", response_model=TrainerModuleOut, status_code=status.HTTP_201_CREATED)
+def create_course_module(
+    course_id: int,
+    payload: ModuleCreateRequest,
+    current_user: User = Depends(require_account_types("TRAINER", "ADMIN")),
+    db: Session = Depends(get_db),
+):
+    """Add a new thematic module to a course."""
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Course with ID {course_id} not found.",
+        )
+    check_course_ownership(course, current_user)
+
+    order = payload.order
+    if order is None:
+        last_mod = (
+            db.query(CourseModule)
+            .filter(CourseModule.course_id == course.id)
+            .order_by(CourseModule.order.desc())
+            .first()
+        )
+        order = (last_mod.order + 1) if last_mod else 1
+
+    module = CourseModule(
+        course_id=course.id,
+        title=payload.title.strip(),
+        description=payload.description.strip() if payload.description else None,
+        order=order,
+        is_demo=False,
+    )
+    db.add(module)
+    db.commit()
+    db.refresh(module)
+    return TrainerModuleOut(
+        id=module.id,
+        course_id=course.id,
+        title=module.title,
+        description=module.description,
+        order=module.order,
+        is_demo=module.is_demo,
+        lessons_count=0,
+        lessons=[],
+    )
+
+
+@router.put("/modules/{module_id}", response_model=TrainerModuleOut)
+def update_course_module(
+    module_id: int,
+    payload: ModuleUpdateRequest,
+    current_user: User = Depends(require_account_types("TRAINER", "ADMIN")),
+    db: Session = Depends(get_db),
+):
+    """Update an existing module's title, description, or order."""
+    module = db.query(CourseModule).filter(CourseModule.id == module_id).first()
+    if not module:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Module with ID {module_id} not found.",
+        )
+    course = module.course
+    if course:
+        check_course_ownership(course, current_user)
+
+    if payload.title is not None:
+        module.title = payload.title.strip()
+    if payload.description is not None:
+        module.description = payload.description.strip() if payload.description else None
+    if payload.order is not None:
+        module.order = payload.order
+
+    db.commit()
+    db.refresh(module)
+
+    lessons = (
+        db.query(Lesson)
+        .filter(Lesson.module_id == module.id)
+        .order_by(Lesson.order.asc(), Lesson.id.asc())
+        .all()
+    )
+    lesson_outs = [
+        TrainerLessonOut(
+            id=l.id,
+            module_id=module.id,
+            title=l.title,
+            lesson_type=l.lesson_type or "TEXT",
+            body=l.body,
+            order=l.order,
+            estimated_minutes=l.estimated_minutes or 15,
+            is_demo=bool(l.is_demo),
+        )
+        for l in lessons
+    ]
+    return TrainerModuleOut(
+        id=module.id,
+        course_id=module.course_id,
+        title=module.title,
+        description=module.description,
+        order=module.order,
+        is_demo=module.is_demo,
+        lessons_count=len(lesson_outs),
+        lessons=lesson_outs,
+    )
+
+
+@router.delete("/modules/{module_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_course_module(
+    module_id: int,
+    current_user: User = Depends(require_account_types("TRAINER", "ADMIN")),
+    db: Session = Depends(get_db),
+):
+    """Delete a module and all its lessons."""
+    module = db.query(CourseModule).filter(CourseModule.id == module_id).first()
+    if not module:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Module with ID {module_id} not found.",
+        )
+    course = module.course
+    if course:
+        check_course_ownership(course, current_user)
+
+    db.delete(module)
+    db.commit()
+    return None
+
+
+@router.post("/modules/{module_id}/lessons", response_model=TrainerLessonOut, status_code=status.HTTP_201_CREATED)
+def create_module_lesson(
+    module_id: int,
+    payload: LessonCreateRequest,
+    current_user: User = Depends(require_account_types("TRAINER", "ADMIN")),
+    db: Session = Depends(get_db),
+):
+    """Create a new lesson inside a module."""
+    module = db.query(CourseModule).filter(CourseModule.id == module_id).first()
+    if not module:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Module with ID {module_id} not found.",
+        )
+    course = module.course
+    if course:
+        check_course_ownership(course, current_user)
+
+    order = payload.order
+    if order is None:
+        last_les = (
+            db.query(Lesson)
+            .filter(Lesson.module_id == module.id)
+            .order_by(Lesson.order.desc())
+            .first()
+        )
+        order = (last_les.order + 1) if last_les else 1
+
+    l_type = payload.lesson_type.strip().upper()
+    if l_type not in ["TEXT", "LINK", "VIDEO_URL"]:
+        l_type = "TEXT"
+
+    lesson = Lesson(
+        module_id=module.id,
+        title=payload.title.strip(),
+        lesson_type=l_type,
+        body=payload.body.strip(),
+        order=order,
+        estimated_minutes=payload.estimated_minutes,
+        is_demo=False,
+    )
+    db.add(lesson)
+    db.commit()
+    db.refresh(lesson)
+
+    return TrainerLessonOut(
+        id=lesson.id,
+        module_id=module.id,
+        title=lesson.title,
+        lesson_type=lesson.lesson_type,
+        body=lesson.body,
+        order=lesson.order,
+        estimated_minutes=lesson.estimated_minutes,
+        is_demo=lesson.is_demo,
+    )
+
+
+@router.put("/lessons/{lesson_id}", response_model=TrainerLessonOut)
+def update_module_lesson(
+    lesson_id: int,
+    payload: LessonUpdateRequest,
+    current_user: User = Depends(require_account_types("TRAINER", "ADMIN")),
+    db: Session = Depends(get_db),
+):
+    """Update an existing lesson."""
+    lesson = db.query(Lesson).filter(Lesson.id == lesson_id).first()
+    if not lesson:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Lesson with ID {lesson_id} not found.",
+        )
+    course = lesson.module.course if lesson.module else None
+    if course:
+        check_course_ownership(course, current_user)
+
+    if payload.title is not None:
+        lesson.title = payload.title.strip()
+    if payload.lesson_type is not None:
+        l_type = payload.lesson_type.strip().upper()
+        if l_type in ["TEXT", "LINK", "VIDEO_URL"]:
+            lesson.lesson_type = l_type
+    if payload.body is not None:
+        lesson.body = payload.body.strip()
+    if payload.order is not None:
+        lesson.order = payload.order
+    if payload.estimated_minutes is not None:
+        lesson.estimated_minutes = payload.estimated_minutes
+
+    db.commit()
+    db.refresh(lesson)
+    return TrainerLessonOut(
+        id=lesson.id,
+        module_id=lesson.module_id,
+        title=lesson.title,
+        lesson_type=lesson.lesson_type,
+        body=lesson.body,
+        order=lesson.order,
+        estimated_minutes=lesson.estimated_minutes,
+        is_demo=lesson.is_demo,
+    )
+
+
+@router.delete("/lessons/{lesson_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_module_lesson(
+    lesson_id: int,
+    current_user: User = Depends(require_account_types("TRAINER", "ADMIN")),
+    db: Session = Depends(get_db),
+):
+    """Delete a lesson."""
+    lesson = db.query(Lesson).filter(Lesson.id == lesson_id).first()
+    if not lesson:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Lesson with ID {lesson_id} not found.",
+        )
+    course = lesson.module.course if lesson.module else None
+    if course:
+        check_course_ownership(course, current_user)
+
+    db.delete(lesson)
+    db.commit()
+    return None
+
+
+@router.post("/courses/{course_id}/reorder")
+def reorder_curriculum(
+    course_id: int,
+    payload: ReorderCurriculumRequest,
+    current_user: User = Depends(require_account_types("TRAINER", "ADMIN")),
+    db: Session = Depends(get_db),
+):
+    """Bulk reorder modules and/or lessons within a course."""
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Course with ID {course_id} not found.",
+        )
+    check_course_ownership(course, current_user)
+
+    if payload.modules:
+        for item in payload.modules:
+            mod = db.query(CourseModule).filter(CourseModule.id == item.id, CourseModule.course_id == course.id).first()
+            if mod:
+                mod.order = item.order
+
+    if payload.lessons:
+        for item in payload.lessons:
+            les = (
+                db.query(Lesson)
+                .join(CourseModule, Lesson.module_id == CourseModule.id)
+                .filter(Lesson.id == item.id, CourseModule.course_id == course.id)
+                .first()
+            )
+            if les:
+                les.order = item.order
+
+    db.commit()
+    return {"status": "success", "message": "Curriculum reordered successfully."}
+
+
+# ------------------------------------------------------------------
+# Course Prerequisites Management
+# ------------------------------------------------------------------
+
+@router.get("/courses/{course_id}/prerequisites", response_model=List[PrerequisiteItemOut])
+def get_trainer_prerequisites(
+    course_id: int,
+    current_user: User = Depends(require_account_types("TRAINER", "ADMIN")),
+    db: Session = Depends(get_db),
+):
+    """Get all prerequisite courses configured for this course."""
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Course with ID {course_id} not found.",
+        )
+    check_course_ownership(course, current_user)
+
+    prereqs = db.query(CoursePrerequisite).filter(CoursePrerequisite.course_id == course.id).all()
+    results = []
+    for p in prereqs:
+        target = p.prerequisite_course
+        if target:
+            results.append(
+                PrerequisiteItemOut(
+                    id=p.id,
+                    prerequisite_course_id=target.id,
+                    course_code=target.code,
+                    course_name=target.name,
+                )
+            )
+    return results
+
+
+@router.post("/courses/{course_id}/prerequisites", response_model=PrerequisiteItemOut, status_code=status.HTTP_201_CREATED)
+def add_course_prerequisite(
+    course_id: int,
+    payload: PrerequisiteAddRequest,
+    current_user: User = Depends(require_account_types("TRAINER", "ADMIN")),
+    db: Session = Depends(get_db),
+):
+    """Add a prerequisite course dependency."""
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Course with ID {course_id} not found.",
+        )
+    check_course_ownership(course, current_user)
+
+    if payload.prerequisite_course_id == course.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A course cannot be a prerequisite of itself.",
+        )
+
+    target = db.query(Course).filter(Course.id == payload.prerequisite_course_id).first()
+    if not target:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Target prerequisite course with ID {payload.prerequisite_course_id} not found.",
+        )
+
+    existing = (
+        db.query(CoursePrerequisite)
+        .filter(
+            CoursePrerequisite.course_id == course.id,
+            CoursePrerequisite.prerequisite_course_id == target.id,
+        )
+        .first()
+    )
+    if existing:
+        return PrerequisiteItemOut(
+            id=existing.id,
+            prerequisite_course_id=target.id,
+            course_code=target.code,
+            course_name=target.name,
+        )
+
+    prereq = CoursePrerequisite(
+        course_id=course.id,
+        prerequisite_course_id=target.id,
+    )
+    db.add(prereq)
+    db.commit()
+    db.refresh(prereq)
+
+    return PrerequisiteItemOut(
+        id=prereq.id,
+        prerequisite_course_id=target.id,
+        course_code=target.code,
+        course_name=target.name,
+    )
+
+
+@router.delete("/courses/{course_id}/prerequisites/{prereq_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_course_prerequisite(
+    course_id: int,
+    prereq_id: int,
+    current_user: User = Depends(require_account_types("TRAINER", "ADMIN")),
+    db: Session = Depends(get_db),
+):
+    """Remove a prerequisite dependency."""
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Course with ID {course_id} not found.",
+        )
+    check_course_ownership(course, current_user)
+
+    prereq = (
+        db.query(CoursePrerequisite)
+        .filter(
+            CoursePrerequisite.id == prereq_id,
+            CoursePrerequisite.course_id == course.id,
+        )
+        .first()
+    )
+    if not prereq:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Prerequisite with ID {prereq_id} not found on this course.",
+        )
+
+    db.delete(prereq)
+    db.commit()
+    return None
+

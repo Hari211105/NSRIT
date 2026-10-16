@@ -13,7 +13,7 @@ Flow:
 6. Rank recommendations by priority, gap size, score, and duration.
 """
 
-from app.models import get_level_label, LearningResource
+from app.models import get_level_label, LearningResource, CoursePrerequisite, CourseEnrollment
 from app.services.gap_service import compute_learner_gaps
 
 
@@ -133,6 +133,37 @@ def generate_recommendations_for_learner(db, learner, raw_learner_competency_rec
             score = calculate_relevance_score(gap_item, res)
             reason = generate_recommendation_reason(gap_item, res, score)
 
+            # Check prerequisites if resource is tied to a course
+            unmet_prereqs = []
+            if getattr(res, "course_id", None):
+                prereq_rows = (
+                    db.query(CoursePrerequisite)
+                    .filter(CoursePrerequisite.course_id == res.course_id)
+                    .all()
+                )
+                for pr in prereq_rows:
+                    target = pr.prerequisite_course
+                    if not target:
+                        continue
+                    enr = (
+                        db.query(CourseEnrollment)
+                        .filter(
+                            CourseEnrollment.user_id == learner.id,
+                            CourseEnrollment.course_id == target.id,
+                            CourseEnrollment.status == "COMPLETED",
+                        )
+                        .first()
+                    )
+                    if not enr:
+                        unmet_prereqs.append(target.name)
+
+            has_unmet = len(unmet_prereqs) > 0
+            prereq_warning = (
+                f"Prerequisite recommended first: {', '.join(unmet_prereqs)}"
+                if has_unmet
+                else None
+            )
+
             recommendation_list.append({
                 "competency_id": comp_id,
                 "competency_name": gap_item["competency_name"],
@@ -151,9 +182,13 @@ def generate_recommendations_for_learner(db, learner, raw_learner_competency_rec
                     "duration_hours": res.duration_hours,
                     "url": res.url,
                     "is_demo": res.is_demo,
+                    "course_id": getattr(res, "course_id", None),
                 },
                 "relevance_score": score,
                 "reason": reason,
+                "has_unmet_prerequisites": has_unmet,
+                "unmet_prerequisites": unmet_prereqs,
+                "warning": prereq_warning,
                 "current_level": gap_item["current_level"],
                 "current_level_label": gap_item["current_level_label"],
                 "required_level": gap_item["required_level"],
@@ -161,12 +196,14 @@ def generate_recommendations_for_learner(db, learner, raw_learner_competency_rec
             })
 
     # 4. Deterministic Sort:
+    #    Prerequisites met first (has_unmet_prerequisites: False < True)
     #    Priority (CRITICAL < HIGH < MEDIUM),
     #    Larger gap first (-gap),
     #    Higher relevance score (-relevance_score),
     #    Shorter duration (duration_hours)
     recommendation_list.sort(
         key=lambda r: (
+            1 if r.get("has_unmet_prerequisites") else 0,
             _PRIORITY_WEIGHTS.get(r["priority"], 99),
             -r["gap"],
             -r["relevance_score"],
