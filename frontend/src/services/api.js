@@ -260,6 +260,86 @@ export const apiClient = {
   /** Get diagnostic assessment history */
   getDiagnosticHistory: () =>
     request('/diagnostic/history'),
+
+  // ── Trainer Studio (Phase 13) ──
+
+  getTrainerCourses: () =>
+    request('/trainer/courses'),
+
+  getTrainerCourse: (courseId) =>
+    request(`/trainer/courses/${courseId}`),
+
+  createTrainerCourse: (data) =>
+    request('/trainer/courses', { method: 'POST', body: data }),
+
+  updateTrainerCourse: (courseId, data) =>
+    request(`/trainer/courses/${courseId}`, { method: 'PUT', body: data }),
+
+  mapCourseCompetency: (courseId, data) =>
+    request(`/trainer/courses/${courseId}/competencies`, { method: 'POST', body: data }),
+
+  unmapCourseCompetency: (courseId, competencyId) =>
+    request(`/trainer/courses/${courseId}/competencies/${competencyId}`, { method: 'DELETE' }),
+
+  getCourseQuestions: (courseId) =>
+    request(`/trainer/courses/${courseId}/questions`),
+
+  createCourseQuestion: (courseId, data) =>
+    request(`/trainer/courses/${courseId}/questions`, { method: 'POST', body: data }),
+
+  updateCourseQuestion: (questionId, data) =>
+    request(`/trainer/questions/${questionId}`, { method: 'PUT', body: data }),
+
+  deleteCourseQuestion: (questionId) =>
+    request(`/trainer/questions/${questionId}`, { method: 'DELETE' }),
+
+  submitCourseForReview: (courseId) =>
+    request(`/trainer/courses/${courseId}/submit`, { method: 'POST' }),
+
+  archiveTrainerCourse: (courseId) =>
+    request(`/trainer/courses/${courseId}/archive`, { method: 'POST' }),
+
+  // ── Admin Console (Phase 13) ──
+
+  getAdminUsers: (params = {}) => {
+    const qs = new URLSearchParams()
+    if (params.search) qs.append('search', params.search)
+    if (params.account_type) qs.append('account_type', params.account_type)
+    if (params.limit) qs.append('limit', String(params.limit))
+    if (params.offset) qs.append('offset', String(params.offset))
+    const query = qs.toString() ? `?${qs.toString()}` : ''
+    return request(`/admin/users${query}`)
+  },
+
+  updateUserRole: (userId, accountType) =>
+    request(`/admin/users/${userId}/role`, {
+      method: 'PATCH',
+      body: { account_type: accountType },
+    }),
+
+  updateUserStatus: (userId, isActive) =>
+    request(`/admin/users/${userId}/status`, {
+      method: 'PATCH',
+      body: { is_active: isActive },
+    }),
+
+  getPendingCourses: () =>
+    request('/admin/courses/pending'),
+
+  approveCourse: (courseId) =>
+    request(`/admin/courses/${courseId}/approve`, { method: 'POST' }),
+
+  rejectCourse: (courseId, note) =>
+    request(`/admin/courses/${courseId}/reject`, {
+      method: 'POST',
+      body: { note },
+    }),
+
+  getPlatformStats: () =>
+    request('/admin/stats'),
+
+  getAuditLogs: (limit = 50, offset = 0) =>
+    request(`/admin/audit-logs?limit=${limit}&offset=${offset}`),
 };
 
 export default apiClient;

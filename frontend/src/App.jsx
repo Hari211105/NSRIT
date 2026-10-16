@@ -6,7 +6,7 @@
  * - Main Top Bar with Search, Notification Bell, Theme toggle, and MoSPI Ministry Emblem block
  * - Dynamic view rendering (Dashboard Overview, Competency, Skill Gaps, Learning, Assessments, Profile, Settings)
  */
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from './context/AuthContext'
 import { useTheme } from './context/ThemeContext'
 import { Login } from './components/Login'
@@ -21,6 +21,8 @@ import { PdfUploadQuiz } from './components/PdfUploadQuiz'
 import { Certificates } from './components/Certificates'
 import { Profile } from './components/Profile'
 import { Settings } from './components/Settings'
+import { CourseStudio } from './components/CourseStudio'
+import { AdminConsole } from './components/AdminConsole'
 
 export const VIEWS = {
   DASHBOARD: 'dashboard',
@@ -30,6 +32,8 @@ export const VIEWS = {
   ASSESSMENTS: 'assessments',
   PROFILE: 'profile',
   SETTINGS: 'settings',
+  TRAINER_STUDIO: 'trainer_studio',
+  ADMIN_CONSOLE: 'admin_console',
 }
 
 export const ASSESSMENT_VIEWS = {
@@ -38,13 +42,23 @@ export const ASSESSMENT_VIEWS = {
 }
 
 export function App() {
-  const { status, user, logout } = useAuth()
+  const { status, user, logout, canAccessTrainer, canAccessAdmin } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const [activeView, setActiveView] = useState(VIEWS.DASHBOARD)
   const [activeAssessment, setActiveAssessment] = useState(ASSESSMENT_VIEWS.DIAGNOSTIC)
   const [assessmentsExpanded, setAssessmentsExpanded] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
+
+  // Route guard: learners cannot access trainer studio or admin console
+  useEffect(() => {
+    if (activeView === VIEWS.TRAINER_STUDIO && !canAccessTrainer) {
+      setActiveView(VIEWS.DASHBOARD)
+    }
+    if (activeView === VIEWS.ADMIN_CONSOLE && !canAccessAdmin) {
+      setActiveView(VIEWS.DASHBOARD)
+    }
+  }, [activeView, canAccessTrainer, canAccessAdmin])
 
   // Handle cross-component navigation
   const handleQuickNavigate = (target) => {
@@ -226,6 +240,49 @@ export function App() {
             <span className="nav-btn-label">Profile</span>
           </button>
 
+          {/* Course Studio (Trainer & Admin) */}
+          {canAccessTrainer && (
+            <button
+              type="button"
+              className={`nav-btn ${activeView === VIEWS.TRAINER_STUDIO ? 'nav-btn-active' : ''}`}
+              onClick={() => {
+                setActiveView(VIEWS.TRAINER_STUDIO)
+                setShowMobileSidebar(false)
+              }}
+            >
+              <div className="nav-btn-icon">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                  <line x1="12" y1="6" x2="16" y2="6" />
+                  <line x1="12" y1="10" x2="16" y2="10" />
+                </svg>
+              </div>
+              <span className="nav-btn-label">Course Studio</span>
+            </button>
+          )}
+
+          {/* Admin Console (Admin Only) */}
+          {canAccessAdmin && (
+            <button
+              type="button"
+              className={`nav-btn ${activeView === VIEWS.ADMIN_CONSOLE ? 'nav-btn-active' : ''}`}
+              onClick={() => {
+                setActiveView(VIEWS.ADMIN_CONSOLE)
+                setShowMobileSidebar(false)
+              }}
+            >
+              <div className="nav-btn-icon">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                  <line x1="8" y1="21" x2="16" y2="21" />
+                  <line x1="12" y1="17" x2="12" y2="21" />
+                </svg>
+              </div>
+              <span className="nav-btn-label">Admin Console</span>
+            </button>
+          )}
+
           {/* Settings */}
           <button
             type="button"
@@ -249,7 +306,15 @@ export function App() {
         <div className="sidebar-footer-user">
           <div className="user-avatar-badge">{userInitial}</div>
           <div className="user-text-meta">
-            <span className="user-name-text">{user?.name || 'Demo Officer'}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="user-name-text">{user?.name || 'Demo Officer'}</span>
+              <span
+                className={`badge-pill ${user?.account_type === 'ADMIN' ? 'bg-emerald' : user?.account_type === 'TRAINER' ? 'bg-purple' : 'bg-blue'}`}
+                style={{ fontSize: '10px', padding: '1px 6px', lineHeight: '14px' }}
+              >
+                {user?.account_type || 'LEARNER'}
+              </span>
+            </div>
             <span className="user-email-text">{user?.email || 'demo@statslearn.in'}</span>
           </div>
           <button
@@ -348,6 +413,12 @@ export function App() {
               <span className="bell-red-dot" />
             </button>
 
+            <span
+              className={`badge-pill ${user?.account_type === 'ADMIN' ? 'bg-emerald' : user?.account_type === 'TRAINER' ? 'bg-purple' : 'bg-blue'}`}
+              style={{ fontSize: '11px', padding: '3px 8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}
+            >
+              {user?.account_type || 'LEARNER'}
+            </span>
           </div>
         </header>
 
@@ -373,6 +444,10 @@ export function App() {
           {activeView === VIEWS.PROFILE && <Profile />}
 
           {activeView === VIEWS.SETTINGS && <Settings />}
+
+          {activeView === VIEWS.TRAINER_STUDIO && canAccessTrainer && <CourseStudio />}
+
+          {activeView === VIEWS.ADMIN_CONSOLE && canAccessAdmin && <AdminConsole />}
         </main>
       </div>
     </div>

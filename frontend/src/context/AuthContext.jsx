@@ -139,9 +139,30 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  const accountType = user?.account_type || 'LEARNER'
+  const isLearner = accountType === 'LEARNER'
+  const isTrainer = accountType === 'TRAINER'
+  const isAdmin = accountType === 'ADMIN'
+  const canAccessTrainer = isTrainer || isAdmin
+  const canAccessAdmin = isAdmin
+
   return (
     <AuthContext.Provider
-      value={{ user, status, message, login, register, logout, refreshUser }}
+      value={{
+        user,
+        status,
+        message,
+        login,
+        register,
+        logout,
+        refreshUser,
+        accountType,
+        isLearner,
+        isTrainer,
+        isAdmin,
+        canAccessTrainer,
+        canAccessAdmin,
+      }}
     >
       {children}
     </AuthContext.Provider>
