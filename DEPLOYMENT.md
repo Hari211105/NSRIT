@@ -46,7 +46,7 @@ Once Render connects to your PostgreSQL database, run the Alembic migration:
    ```bash
    alembic upgrade head
    ```
-2. Migrations `0001_initial_schema`, `0002_align_schema_with_models`, and `0003_rbac_trainer_admin` create all tables, indexes, constraints, and audit logs.
+2. Migrations `0001_initial_schema`, `0002_align_schema_with_models`, `0003_rbac_trainer_admin`, and `0004_course_modules_lessons_enrollments` create all tables, indexes, constraints, audit logs, curriculum modules, lessons, course enrollments, and prerequisite relationships.
 3. **Reference Data Initialization**: On the first production boot, UPSKILL AI automatically detects that the database is empty (0 sectors) and seeds the reference catalogs (sectors, framework roles, competencies, courses, resources, scenario & MCQ questions). Subsequent boots detect existing rows and skip seeding.
    - To force seeding on every start: set `SEED_ON_STARTUP=true`.
    - To completely disable automatic seeding: set `SEED_ON_STARTUP=false`.
