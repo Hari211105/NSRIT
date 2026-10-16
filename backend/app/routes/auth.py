@@ -78,6 +78,8 @@ class UserOut(BaseModel):
     id: int
     name: str
     email: str
+    account_type: str = "LEARNER"
+    is_active: bool = True
     learning_mode: str = "ROLE"
     role: Optional[RoleOut] = None
     course: Optional[CourseOut] = None
@@ -107,6 +109,8 @@ def serialize_user(user: User) -> dict:
         "id": user.id,
         "name": user.name,
         "email": user.email,
+        "account_type": getattr(user, "account_type", "LEARNER") or "LEARNER",
+        "is_active": bool(getattr(user, "is_active", True)),
         "learning_mode": getattr(user, "learning_mode", "ROLE") or "ROLE",
         "role": {"id": user.role.id, "name": user.role.name} if user.role else None,
         "course": {
@@ -169,7 +173,7 @@ def get_current_user(
     """
     Reusable FastAPI dependency that resolves the authenticated user from the
     Authorization: Bearer <token> header. Raises 401 on a missing or invalid
-    token or when the user no longer exists.
+    token or when the user no longer exists, and 403 if the user is deactivated.
     """
     user_id = decode_access_token(token)
     if user_id is None:
@@ -185,7 +189,29 @@ def get_current_user(
             detail="User not found.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated.",
+        )
     return user
+
+
+def require_account_types(*allowed_types: str):
+    """
+    Dependency factory ensuring current_user has one of the allowed account types.
+    Returns 401 if unauthenticated and 403 if account_type is not authorized.
+    """
+    def check_permissions(current_user: User = Depends(get_current_user)) -> User:
+        user_type = getattr(current_user, "account_type", "LEARNER") or "LEARNER"
+        normalized_allowed = [t.upper() for t in allowed_types]
+        if user_type.upper() not in normalized_allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access forbidden: required account type in {list(allowed_types)}.",
+            )
+        return current_user
+    return check_permissions
 
 
 # ------------------------------------------------------------------
@@ -195,7 +221,7 @@ def get_current_user(
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     """Register a new account. Rejects duplicate emails, hashes the password,
-    and never returns the password hash."""
+    always assigns account_type='LEARNER', and never returns the password hash."""
     existing = db.query(User).filter(User.email == payload.email.lower()).first()
     if existing:
         raise HTTPException(
@@ -206,6 +232,8 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     user = User(
         name=payload.name.strip(),
         email=payload.email.lower(),
+        account_type="LEARNER",
+        is_active=True,
         is_demo=False,
         hashed_password=hash_password(payload.password),
     )
@@ -226,6 +254,12 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password.",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated.",
         )
 
     token = create_access_token(user.id)
@@ -267,7 +301,7 @@ def get_onboarding_status(
     from app.models import Course
     sectors = db.query(Sector).order_by(Sector.display_order.asc(), Sector.id.asc()).all()
     roles = db.query(Role).order_by(Role.id.asc()).all()
-    courses = db.query(Course).filter(Course.active == True).order_by(Course.id.asc()).all()
+    courses = db.query(Course).filter(Course.active == True, Course.status == "PUBLISHED").order_by(Course.id.asc()).all()
 
     has_target = (
         (getattr(current_user, "learning_mode", "ROLE") == "GOAL" and current_user.course_id is not None)
@@ -386,7 +420,7 @@ def complete_onboarding(
 
     else:
         # GOAL mode (course-based)
-        course = db.query(Course).filter(Course.id == payload.course_id, Course.active == True).first()
+        course = db.query(Course).filter(Course.id == payload.course_id, Course.active == True, Course.status == "PUBLISHED").first()
         if not course:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

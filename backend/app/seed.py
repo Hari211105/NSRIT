@@ -236,6 +236,21 @@ DEMO_LEARNER_PROFILE_COMPLETED = True
 # the existing get_demo_learner() path still resolves the learner by email.
 DEMO_LEARNER_PASSWORD = "Demo@12345"
 
+# Phase 13 - Demo Trainer & Admin definitions (for development/testing only)
+DEMO_TRAINER = {
+    "name": "Demo Trainer",
+    "email": "trainer@statlearn.local",
+    "is_demo": True,
+}
+DEMO_TRAINER_PASSWORD = "Trainer@12345"
+
+DEMO_ADMIN = {
+    "name": "Demo Admin",
+    "email": "admin@statlearn.local",
+    "is_demo": True,
+}
+DEMO_ADMIN_PASSWORD = "Admin@12345"
+
 
 # ---------------------------------------------------------------
 # Demo learner's initial competency levels
@@ -933,6 +948,8 @@ def seed_demo_data():
                 learner = User(
                     name=DEMO_LEARNER["name"],
                     email=DEMO_LEARNER["email"],
+                    account_type="LEARNER",
+                    is_active=True,
                     is_demo=DEMO_LEARNER["is_demo"],
                     role_id=role.id,
                     # Phase 7A - give the demo learner a login password so the auth
@@ -947,6 +964,8 @@ def seed_demo_data():
                 db.flush()
                 print(f"  Created learner: {learner.name} ({learner.email})")
             else:
+                learner.account_type = "LEARNER"
+                learner.is_active = True
                 # Phase 7A - backfill a password on a pre-existing demo learner that
                 # was created before the hashed_password column existed.
                 if not learner.hashed_password:
@@ -959,6 +978,52 @@ def seed_demo_data():
                     learner.designation = learner.designation or "Statistical / Data Officer"
                     print(f"  Backfilled onboarding flag for existing learner: {learner.email}")
                 print(f"  Learner already exists: {learner.email}")
+
+            # Phase 13 - Seed demo trainer
+            trainer = db.query(User).filter_by(email=DEMO_TRAINER["email"]).first()
+            if not trainer:
+                trainer = User(
+                    name=DEMO_TRAINER["name"],
+                    email=DEMO_TRAINER["email"],
+                    account_type="TRAINER",
+                    is_active=True,
+                    is_demo=DEMO_TRAINER["is_demo"],
+                    hashed_password=hash_password(DEMO_TRAINER_PASSWORD),
+                    designation="Senior Course Trainer",
+                    department="National Statistical Systems Training Academy",
+                    profile_completed=True,
+                )
+                db.add(trainer)
+                db.flush()
+                print(f"  Created demo trainer: {trainer.name} ({trainer.email})")
+            else:
+                trainer.account_type = "TRAINER"
+                trainer.is_active = True
+                if not trainer.hashed_password:
+                    trainer.hashed_password = hash_password(DEMO_TRAINER_PASSWORD)
+
+            # Phase 13 - Seed demo admin
+            admin_user = db.query(User).filter_by(email=DEMO_ADMIN["email"]).first()
+            if not admin_user:
+                admin_user = User(
+                    name=DEMO_ADMIN["name"],
+                    email=DEMO_ADMIN["email"],
+                    account_type="ADMIN",
+                    is_active=True,
+                    is_demo=DEMO_ADMIN["is_demo"],
+                    hashed_password=hash_password(DEMO_ADMIN_PASSWORD),
+                    designation="Platform Administrator",
+                    department="Ministry of Statistics and Programme Implementation",
+                    profile_completed=True,
+                )
+                db.add(admin_user)
+                db.flush()
+                print(f"  Created demo admin: {admin_user.name} ({admin_user.email})")
+            else:
+                admin_user.account_type = "ADMIN"
+                admin_user.is_active = True
+                if not admin_user.hashed_password:
+                    admin_user.hashed_password = hash_password(DEMO_ADMIN_PASSWORD)
 
             # 5. Create learner competency records (skip existing)
             for lc_data in DEMO_LEARNER_COMPETENCIES:
@@ -1047,6 +1112,7 @@ def seed_demo_data():
                     description=c_data["description"],
                     category=c_data["category"],
                     level_hint=c_data.get("level_hint", "Beginner"),
+                    status="PUBLISHED",
                     is_demo=True,
                     active=True,
                 )
@@ -1065,6 +1131,7 @@ def seed_demo_data():
                         )
                         db.add(ccm)
             else:
+                existing_course.status = "PUBLISHED"
                 # Ensure mappings exist if course was already created
                 for comp_spec in c_data.get("competencies", []):
                     comp = competency_map.get(comp_spec["competency_name"])

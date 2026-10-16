@@ -45,6 +45,9 @@ _ADDED_COLUMNS = {
         # Phase 10 - learning mode (ROLE or GOAL) and course_id
         "learning_mode": "VARCHAR(20) DEFAULT 'ROLE'",
         "course_id": "INTEGER",
+        # Phase 13 - RBAC account type & active status
+        "account_type": "VARCHAR(20) DEFAULT 'LEARNER'",
+        "is_active": "BOOLEAN DEFAULT TRUE",
     },
     "roles": {
         # Phase 9 - multi-sector expansion
@@ -53,6 +56,10 @@ _ADDED_COLUMNS = {
     "courses": {
         # Phase 11 - estimated hours
         "estimated_hours": "INTEGER DEFAULT 20",
+        # Phase 13 - course authoring status, creator & review note
+        "status": "VARCHAR(20) DEFAULT 'PUBLISHED'",
+        "created_by": "INTEGER",
+        "review_note": "TEXT",
     },
     "diagnostic_questions": {
         # Phase 11 - MCQ vs SCENARIO questions & course scoping

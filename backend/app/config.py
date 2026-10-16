@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # - True: explicitly force seeding on every startup
     # - False: explicitly disable seeding on startup
     SEED_ON_STARTUP: Union[bool, None] = None
+
+    # First admin promotion on startup (Phase 13)
+    INITIAL_ADMIN_EMAIL: Union[str, None] = None
     
     # CORS origins: can be passed as JSON array or comma-separated string
     BACKEND_CORS_ORIGINS: Union[List[str], str] = [

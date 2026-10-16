@@ -166,12 +166,15 @@ def start_diagnostic(
             # Technical courses prefer MCQ
             questions = query.order_by(DiagnosticQuestion.competency_id, DiagnosticQuestion.difficulty).all()
     else:
-        # Standard ROLE mode: exclude course-specific scenario questions so role assessments
+        # Standard ROLE mode: exclude course-specific questions so role assessments
         # retain their standard 3 questions per competency (EASY, MEDIUM, HARD)
-        role_qs = query.filter(DiagnosticQuestion.question_type == "MCQ").order_by(
+        role_qs = query.filter(
+            DiagnosticQuestion.course_id.is_(None),
+            DiagnosticQuestion.question_type == "MCQ",
+        ).order_by(
             DiagnosticQuestion.competency_id, DiagnosticQuestion.difficulty
         ).all()
-        questions = role_qs if role_qs else query.order_by(DiagnosticQuestion.competency_id, DiagnosticQuestion.difficulty).all()
+        questions = role_qs if role_qs else query.filter(DiagnosticQuestion.course_id.is_(None)).order_by(DiagnosticQuestion.competency_id, DiagnosticQuestion.difficulty).all()
 
     if not questions:
         raise HTTPException(

@@ -113,10 +113,16 @@ class Course(Base):
     is_demo         = Column(Boolean, default=False)
     active          = Column(Boolean, default=True)
 
+    # Phase 13 - Course authoring status & creator
+    status          = Column(String(20), default="PUBLISHED", nullable=False)  # DRAFT | PENDING_REVIEW | PUBLISHED | ARCHIVED
+    created_by      = Column(Integer, ForeignKey("users.id", use_alter=True, name="fk_courses_created_by_users"), nullable=True)
+    review_note     = Column(Text, nullable=True)
+
     # Relationships
     sector              = relationship("Sector")
     competency_mappings = relationship("CourseCompetency", back_populates="course")
-    users               = relationship("User", back_populates="course")
+    users               = relationship("User", back_populates="course", foreign_keys="User.course_id")
+    creator             = relationship("User", foreign_keys=[created_by])
 
 
 class CourseCompetency(Base):
@@ -151,6 +157,13 @@ class User(Base):
     hashed_password = Column(String(200), nullable=True, default=None)
 
     # ------------------------------------------------------------------
+    # Phase 13 - Role-Based Access Control (RBAC)
+    # "LEARNER" | "TRAINER" | "ADMIN"
+    # ------------------------------------------------------------------
+    account_type    = Column(String(20), default="LEARNER", nullable=False)
+    is_active       = Column(Boolean, default=True, nullable=False)
+
+    # ------------------------------------------------------------------
     # Phase 10 - Learning Goal / Mode
     # "ROLE" (existing role-based pathway) or "GOAL" (course-based pathway)
     # ------------------------------------------------------------------
@@ -174,7 +187,7 @@ class User(Base):
 
     # Relationships
     role                 = relationship("Role", back_populates="users")
-    course               = relationship("Course", back_populates="users")
+    course               = relationship("Course", back_populates="users", foreign_keys=[course_id])
     learner_competencies = relationship("LearnerCompetency", back_populates="user")
 
 
@@ -402,4 +415,23 @@ class DiagnosticAssessment(Base):
 
     # Relationships
     learner = relationship("User")
+
+
+# ------------------------------------------------------------------
+# Audit Log (Phase 13 — RBAC role changes & course approvals)
+# ------------------------------------------------------------------
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    action      = Column(String(50), nullable=False)   # ROLE_CHANGE | USER_STATUS_CHANGE | COURSE_APPROVE | COURSE_REJECT
+    target_type = Column(String(50), nullable=False)   # USER | COURSE
+    target_id   = Column(Integer, nullable=True)
+    details     = Column(Text, nullable=True)
+    created_at  = Column(String(50), nullable=True)
+
+    # Relationships
+    user = relationship("User")
 
