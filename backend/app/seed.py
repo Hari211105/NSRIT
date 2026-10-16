@@ -9,7 +9,23 @@ import json
 from datetime import datetime
 from app.config import settings
 from app.database import SessionLocal
-from app.models import Role, Competency, RoleCompetency, User, LearnerCompetency, LearningResource, DiagnosticQuestion, Sector, Course, CourseCompetency
+from app.models import (
+    Role,
+    Competency,
+    RoleCompetency,
+    User,
+    LearnerCompetency,
+    LearningResource,
+    DiagnosticQuestion,
+    Sector,
+    Course,
+    CourseCompetency,
+    CourseModule,
+    Lesson,
+    CourseEnrollment,
+    LessonProgress,
+    CoursePrerequisite,
+)
 from app.security import hash_password
 from app.multi_sector_data import (
     SECTORS_DATA,
@@ -20,6 +36,7 @@ from app.multi_sector_data import (
     MULTI_SECTOR_DIAGNOSTIC_QUESTIONS,
 )
 from app.course_data import COURSES_DATA, COURSE_LEARNING_RESOURCES, SCENARIO_DIAGNOSTIC_QUESTIONS
+from app.curriculum_data import DEMO_COURSE_CURRICULUM, DEMO_PREREQUISITES
 
 
 # ---------------------------------------------------------------
@@ -1148,6 +1165,117 @@ def seed_demo_data():
                                 priority=comp_spec.get("priority", "MEDIUM"),
                             )
                             db.add(ccm)
+
+        # 9. Seed demo curriculum: modules, lessons, and prerequisites (Phase 14)
+        for c_code, c_curr in DEMO_COURSE_CURRICULUM.items():
+            course = db.query(Course).filter_by(code=c_code).first()
+            if not course:
+                continue
+
+            if c_curr.get("min_diagnostic_score") is not None:
+                course.min_diagnostic_score = c_curr["min_diagnostic_score"]
+
+            for m_data in c_curr.get("modules", []):
+                module = (
+                    db.query(CourseModule)
+                    .filter_by(course_id=course.id, title=m_data["title"])
+                    .first()
+                )
+                if not module:
+                    module = CourseModule(
+                        course_id=course.id,
+                        title=m_data["title"],
+                        description=m_data.get("description"),
+                        order=m_data.get("order", 1),
+                        is_demo=True,
+                    )
+                    db.add(module)
+                    db.flush()
+
+                for l_data in m_data.get("lessons", []):
+                    lesson = (
+                        db.query(Lesson)
+                        .filter_by(module_id=module.id, title=l_data["title"])
+                        .first()
+                    )
+                    if not lesson:
+                        lesson = Lesson(
+                            module_id=module.id,
+                            title=l_data["title"],
+                            lesson_type=l_data.get("lesson_type", "TEXT"),
+                            body=l_data.get("body", ""),
+                            order=l_data.get("order", 1),
+                            estimated_minutes=l_data.get("estimated_minutes", 15),
+                            is_demo=True,
+                        )
+                        db.add(lesson)
+
+        # Seed demo prerequisites
+        for c_code, p_code in DEMO_PREREQUISITES:
+            c = db.query(Course).filter_by(code=c_code).first()
+            p = db.query(Course).filter_by(code=p_code).first()
+            if c and p:
+                existing_prereq = (
+                    db.query(CoursePrerequisite)
+                    .filter_by(course_id=c.id, prerequisite_course_id=p.id)
+                    .first()
+                )
+                if not existing_prereq:
+                    prereq = CoursePrerequisite(
+                        course_id=c.id,
+                        prerequisite_course_id=p.id,
+                    )
+                    db.add(prereq)
+
+        # Link learning resources to matching demo courses where applicable
+        py_course = db.query(Course).filter_by(code="TECH_PY_101").first()
+        if py_course:
+            for res in db.query(LearningResource).all():
+                if "python" in res.title.lower() and not res.course_id:
+                    res.course_id = py_course.id
+
+        # In development/testing, enroll demo learner in TECH_PY_101 with partial progress
+        if settings.ENVIRONMENT != "production":
+            demo_user = db.query(User).filter_by(email="demo@statlearn.local").first()
+            if demo_user and py_course:
+                existing_enr = (
+                    db.query(CourseEnrollment)
+                    .filter_by(user_id=demo_user.id, course_id=py_course.id)
+                    .first()
+                )
+                if not existing_enr:
+                    enr = CourseEnrollment(
+                        user_id=demo_user.id,
+                        course_id=py_course.id,
+                        status="IN_PROGRESS",
+                        started_at=datetime.utcnow().isoformat(),
+                        progress_percent=25.0,
+                    )
+                    db.add(enr)
+                    db.flush()
+
+                    # Mark first lesson complete for demo learner
+                    first_lesson = (
+                        db.query(Lesson)
+                        .join(CourseModule, Lesson.module_id == CourseModule.id)
+                        .filter(CourseModule.course_id == py_course.id)
+                        .order_by(CourseModule.order.asc(), Lesson.order.asc())
+                        .first()
+                    )
+                    if first_lesson:
+                        prog = (
+                            db.query(LessonProgress)
+                            .filter_by(user_id=demo_user.id, lesson_id=first_lesson.id)
+                            .first()
+                        )
+                        if not prog:
+                            prog = LessonProgress(
+                                user_id=demo_user.id,
+                                lesson_id=first_lesson.id,
+                                completed=True,
+                                completed_at=datetime.utcnow().isoformat(),
+                            )
+                            db.add(prog)
 
         db.commit()
         print("Demo data seeding complete.")

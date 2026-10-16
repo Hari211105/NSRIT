@@ -2,7 +2,7 @@
 UPSKILL AI - Database Models (Phase 2)
 Using integer primary keys for simplicity with SQLite.
 """
-from sqlalchemy import Column, Float, Integer, String, Boolean, ForeignKey, Text
+from sqlalchemy import Column, Float, Integer, String, Boolean, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -118,11 +118,17 @@ class Course(Base):
     created_by      = Column(Integer, ForeignKey("users.id", use_alter=True, name="fk_courses_created_by_users"), nullable=True)
     review_note     = Column(Text, nullable=True)
 
+    # Phase 14 - Course completion prerequisites and minimum diagnostic score
+    min_diagnostic_score = Column(Float, nullable=True, default=None)
+
     # Relationships
     sector              = relationship("Sector")
     competency_mappings = relationship("CourseCompetency", back_populates="course")
     users               = relationship("User", back_populates="course", foreign_keys="User.course_id")
     creator             = relationship("User", foreign_keys=[created_by])
+    modules             = relationship("CourseModule", back_populates="course", cascade="all, delete-orphan", order_by="CourseModule.order")
+    enrollments         = relationship("CourseEnrollment", back_populates="course", cascade="all, delete-orphan")
+    prerequisites       = relationship("CoursePrerequisite", foreign_keys="CoursePrerequisite.course_id", back_populates="course", cascade="all, delete-orphan")
 
 
 class CourseCompetency(Base):
@@ -227,10 +233,12 @@ class LearningResource(Base):
     url            = Column(String(500), nullable=True)
     is_demo        = Column(Boolean, default=True)
     active         = Column(Boolean, default=True)
+    course_id      = Column(Integer, ForeignKey("courses.id"), nullable=True, index=True)
 
     # Relationships
     competency      = relationship("Competency", back_populates="learning_resources")
     recommendations = relationship("Recommendation", back_populates="learning_resource")
+    course          = relationship("Course")
 
 
 # ------------------------------------------------------------------
@@ -434,4 +442,112 @@ class AuditLog(Base):
 
     # Relationships
     user = relationship("User")
+
+
+# ------------------------------------------------------------------
+# Phase 14 - Curriculum: Modules, Lessons, Enrollments & Progress
+# ------------------------------------------------------------------
+
+class CourseModule(Base):
+    """
+    A structured thematic module within a Course.
+    Contains sequentially ordered Lessons.
+    """
+    __tablename__ = "course_modules"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    course_id   = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    title       = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    order       = Column(Integer, nullable=False, default=1)
+    is_demo     = Column(Boolean, default=False, nullable=False)
+
+    # Relationships
+    course  = relationship("Course", back_populates="modules")
+    lessons = relationship("Lesson", back_populates="module", cascade="all, delete-orphan", order_by="Lesson.order")
+
+
+class Lesson(Base):
+    """
+    An individual learning unit within a CourseModule.
+    Type can be TEXT (Markdown/rich article), LINK (external official link), or VIDEO_URL.
+    """
+    __tablename__ = "lessons"
+
+    id                = Column(Integer, primary_key=True, index=True)
+    module_id         = Column(Integer, ForeignKey("course_modules.id"), nullable=False, index=True)
+    title             = Column(String(200), nullable=False)
+    lesson_type       = Column(String(20), nullable=False, default="TEXT")  # TEXT | LINK | VIDEO_URL
+    body              = Column(Text, nullable=False)
+    order             = Column(Integer, nullable=False, default=1)
+    estimated_minutes = Column(Integer, nullable=False, default=15)
+    is_demo           = Column(Boolean, default=False, nullable=False)
+
+    # Relationships
+    module           = relationship("CourseModule", back_populates="lessons")
+    progress_records = relationship("LessonProgress", back_populates="lesson", cascade="all, delete-orphan")
+
+
+class CourseEnrollment(Base):
+    """
+    Learner enrollment in a Course with overall progress tracking.
+    """
+    __tablename__ = "course_enrollments"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    user_id          = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    course_id        = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    status           = Column(String(20), nullable=False, default="ENROLLED")  # ENROLLED | IN_PROGRESS | COMPLETED
+    started_at       = Column(String(50), nullable=True)
+    completed_at     = Column(String(50), nullable=True)
+    progress_percent = Column(Float, nullable=False, default=0.0)
+
+    # Relationships
+    user   = relationship("User")
+    course = relationship("Course", back_populates="enrollments")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "course_id", name="uq_user_course_enrollment"),
+    )
+
+
+class LessonProgress(Base):
+    """
+    Records completion of an individual Lesson by a learner.
+    """
+    __tablename__ = "lesson_progress"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    user_id      = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    lesson_id    = Column(Integer, ForeignKey("lessons.id"), nullable=False, index=True)
+    completed    = Column(Boolean, nullable=False, default=True)
+    completed_at = Column(String(50), nullable=True)
+
+    # Relationships
+    user   = relationship("User")
+    lesson = relationship("Lesson", back_populates="progress_records")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "lesson_id", name="uq_user_lesson_progress"),
+    )
+
+
+class CoursePrerequisite(Base):
+    """
+    Prerequisite relationship between two Courses.
+    prerequisite_course_id must be completed before or recommended before course_id.
+    """
+    __tablename__ = "course_prerequisites"
+
+    id                     = Column(Integer, primary_key=True, index=True)
+    course_id              = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+    prerequisite_course_id = Column(Integer, ForeignKey("courses.id"), nullable=False, index=True)
+
+    # Relationships
+    course              = relationship("Course", foreign_keys=[course_id], back_populates="prerequisites")
+    prerequisite_course = relationship("Course", foreign_keys=[prerequisite_course_id])
+
+    __table_args__ = (
+        UniqueConstraint("course_id", "prerequisite_course_id", name="uq_course_prerequisite"),
+    )
 

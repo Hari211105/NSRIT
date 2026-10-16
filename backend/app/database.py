@@ -60,6 +60,12 @@ _ADDED_COLUMNS = {
         "status": "VARCHAR(20) DEFAULT 'PUBLISHED'",
         "created_by": "INTEGER",
         "review_note": "TEXT",
+        # Phase 14 - minimum diagnostic score threshold
+        "min_diagnostic_score": "FLOAT",
+    },
+    "learning_resources": {
+        # Phase 14 - link learning resource to course
+        "course_id": "INTEGER",
     },
     "diagnostic_questions": {
         # Phase 11 - MCQ vs SCENARIO questions & course scoping
