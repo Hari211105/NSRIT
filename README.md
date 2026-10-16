@@ -10,9 +10,9 @@
 UPSKILL AI is an AI-driven competency intelligence and personalized learning platform built for learners across domains — from students and self-paced career switchers to industry professionals and public sector officers.
 
 ### Current Status
-> **Production-Ready Full-Stack Platform** — Multi-sector competency framework, dual onboarding pathways (Role-Based Career Track & Goal-Based Course Track), diagnostic assessments with technical MCQs & practical situational scenarios, deterministic gap analysis, personalized resource recommendations, browser-based PDF upload to AI quiz, verified credentials, Docker containerization, PostgreSQL support with Alembic migrations, and GitHub Actions CI/CD.
+> **Production-Ready Full-Stack Platform** — Multi-sector competency framework, dual onboarding pathways (Role-Based Career Track & Goal-Based Course Track), Role-Based Access Control (RBAC with Learner, Trainer, and Admin roles), Course Studio for Trainers, Admin Console for user management and course approvals, diagnostic assessments with technical MCQs & practical situational scenarios, deterministic gap analysis, personalized resource recommendations, browser-based PDF upload to AI quiz, verified credentials, Docker containerization, PostgreSQL support with Alembic migrations, and GitHub Actions CI/CD.
 >
-> Test status: **119 comprehensive backend tests passing** (onboarding in both modes, dual-mode gap analysis and recommendations, diagnostic scoring, scenario assessments, course discovery search & filtering, document quiz generation, and production security hardening). Run with `pytest` from the project root.
+> Test status: **130 comprehensive backend tests passing** (RBAC authorization matrix, trainer course lifecycle, admin review & user management, onboarding in both modes, dual-mode gap analysis and recommendations, diagnostic scoring, scenario assessments, course discovery search & filtering, document quiz generation, and production security hardening). Run with `pytest` from the project root.
 >
 > **Demo data honesty:** The learning catalogs, course modules, scenario questions, and resources are **demo seed data** designed to demonstrate end-to-end functionality without third-party vendor lock-in.
 
@@ -92,6 +92,7 @@ alembic current
 | `PORT` | Backend | `8000` | Port uvicorn binds to |
 | `JWT_SECRET_KEY` | Backend | `upskill-dev-secret...` | In `production`, server **refuses to start** unless a strong key is set |
 | `DATABASE_URL` | Backend | `sqlite:///./statlearn_ai.db` | Use `postgresql+psycopg://...` in production |
+| `INITIAL_ADMIN_EMAIL` | Backend | `unset` / `admin@example.com` | Promotes user matching this email to `ADMIN` on startup in production |
 | `BACKEND_CORS_ORIGINS` | Backend | `["http://localhost:5173"]` | JSON array or comma-separated list of allowed frontend origins |
 | `SEED_ON_STARTUP` | Backend | `unset` / `true` / `false` | Unset = seeds reference data only if DB is empty; `true` = forces seed; `false` = never |
 | `OPENROUTER_API_KEY` | Backend | `""` | OpenRouter API Key for document quiz generation |
@@ -108,12 +109,14 @@ For complete, step-by-step instructions on deploying the frontend to **Vercel**,
 ## 📊 Demo Credentials (Development & Testing)
 
 > [!NOTE]
-> The demo account below is automatically seeded in **development and testing environments only** (`ENVIRONMENT=development`). In **production**, hardcoded demo accounts are never created; all users register through the secure signup flow.
+> The demo accounts below are automatically seeded in **development and testing environments only** (`ENVIRONMENT=development`). In **production**, hardcoded demo accounts are never created; all users register through the secure signup flow, and an initial administrator can be configured via `INITIAL_ADMIN_EMAIL`.
 
-| Account | Email | Password | Pathway |
-|---|---|---|---|
-| Pre-onboarded Demo Learner | `demo@statlearn.local` | `Demo@12345` | Governance & Statistical Track |
+| Account | Role / Account Type | Email | Password | Access & Features |
+|---|---|---|---|---|
+| Demo Learner | `LEARNER` | `demo@statlearn.local` | `Demo@12345` | Career track, learning paths, diagnostics, quizzes |
+| Demo Trainer | `TRAINER` | `trainer@statlearn.local` | `Trainer@12345` | Course Studio, competency mapping, question bank authoring |
+| Demo Admin | `ADMIN` | `admin@statlearn.local` | `Admin@12345` | Admin Console, user management, course review queue, audit logs |
 
-New users: **Create Account** on the login page → choose your learning pathway:
+New users: **Create Account** on the login page (registered users are always `LEARNER` by default) → choose your learning pathway:
 1. **Prepare for a Role**: Select sector & position, complete competency diagnostic, view role gap analysis.
 2. **Learn a Subject**: Browse technical and non-technical courses with real-time keyword search and category filters, take scenario or MCQ assessments, and follow streamlined learning paths.

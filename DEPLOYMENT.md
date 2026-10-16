@@ -32,6 +32,7 @@ This guide walks you through the production deployment of **UPSKILL AI**:
    | `ENVIRONMENT` | `production` | Enables production security checks |
    | `JWT_SECRET_KEY` | *(Generate a 64-char key)* | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
    | `DATABASE_URL` | *(Your PostgreSQL URI)* | Managed Postgres connection string |
+   | `INITIAL_ADMIN_EMAIL` | `admin@yourdomain.com` | Promotes this user to `ADMIN` on startup |
    | `BACKEND_CORS_ORIGINS` | `["https://your-frontend.vercel.app","http://localhost:5173"]` | Include your Vercel domain |
    | `OPENROUTER_API_KEY` | `sk-or-v1-...` | Your backend OpenRouter AI key |
    | `OPENROUTER_MODEL` | `openrouter/free` | AI generation model slug |
@@ -45,11 +46,11 @@ Once Render connects to your PostgreSQL database, run the Alembic migration:
    ```bash
    alembic upgrade head
    ```
-2. Migrations `0001_initial_schema` and `0002_align_schema_with_models` create all tables, indexes, and constraints.
+2. Migrations `0001_initial_schema`, `0002_align_schema_with_models`, and `0003_rbac_trainer_admin` create all tables, indexes, constraints, and audit logs.
 3. **Reference Data Initialization**: On the first production boot, UPSKILL AI automatically detects that the database is empty (0 sectors) and seeds the reference catalogs (sectors, framework roles, competencies, courses, resources, scenario & MCQ questions). Subsequent boots detect existing rows and skip seeding.
    - To force seeding on every start: set `SEED_ON_STARTUP=true`.
    - To completely disable automatic seeding: set `SEED_ON_STARTUP=false`.
-   - **Security**: In `production` mode, the hardcoded demo learner (`demo@statlearn.local`) is **never created**, regardless of the seeding path taken.
+   - **Security**: In `production` mode, hardcoded demo accounts (`demo@statlearn.local`, `trainer@statlearn.local`, `admin@statlearn.local`) are **never created**. An initial administrator can be designated by setting `INITIAL_ADMIN_EMAIL=your-email@domain.com`.
 
 ---
 
@@ -76,7 +77,7 @@ In your GitHub repository `https://github.com/Hari211105/NSRIT`:
    - Name: `RENDER_DEPLOY_HOOK_URL`
    - Value: *(The Deploy Hook URL copied from Render)*
 3. Now, whenever you push changes to `main`, GitHub Actions will:
-   - Run the 119 backend Pytest tests.
+   - Run the 130 backend Pytest tests.
    - Run the Vite production build.
    - Verify the Docker container build.
    - Automatically trigger Render to deploy the new container.
