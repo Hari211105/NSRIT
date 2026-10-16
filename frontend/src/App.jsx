@@ -19,6 +19,8 @@ import { DiagnosticAssessment } from './components/DiagnosticAssessment'
 import { DocumentQuiz } from './components/DocumentQuiz'
 import { PdfUploadQuiz } from './components/PdfUploadQuiz'
 import { Certificates } from './components/Certificates'
+import { MyCourses } from './components/MyCourses'
+import { CoursePlayer } from './components/CoursePlayer'
 import { Profile } from './components/Profile'
 import { Settings } from './components/Settings'
 import { CourseStudio } from './components/CourseStudio'
@@ -29,7 +31,10 @@ export const VIEWS = {
   COMPETENCY: 'competency',
   GAPS: 'gaps',
   LEARNING: 'learning',
+  MY_COURSES: 'my_courses',
+  COURSE_PLAYER: 'course_player',
   ASSESSMENTS: 'assessments',
+  CERTIFICATES: 'certificates',
   PROFILE: 'profile',
   SETTINGS: 'settings',
   TRAINER_STUDIO: 'trainer_studio',
@@ -49,6 +54,8 @@ export function App() {
   const [assessmentsExpanded, setAssessmentsExpanded] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
+  const [selectedCourseId, setSelectedCourseId] = useState(null)
+  const [selectedLessonId, setSelectedLessonId] = useState(null)
 
   // Route guard: learners cannot access trainer studio or admin console
   useEffect(() => {
@@ -60,6 +67,12 @@ export function App() {
     }
   }, [activeView, canAccessTrainer, canAccessAdmin])
 
+  const handleOpenCourse = (courseId, lessonId = null) => {
+    setSelectedCourseId(courseId)
+    setSelectedLessonId(lessonId)
+    setActiveView(VIEWS.COURSE_PLAYER)
+  }
+
   // Handle cross-component navigation
   const handleQuickNavigate = (target) => {
     if (target === 'diagnostic') {
@@ -68,6 +81,10 @@ export function App() {
     } else if (target === 'pdf_quiz') {
       setActiveView(VIEWS.ASSESSMENTS)
       setActiveAssessment(ASSESSMENT_VIEWS.QUIZ)
+    } else if (target === 'courses') {
+      setActiveView(VIEWS.MY_COURSES)
+    } else if (target === 'certificates') {
+      setActiveView(VIEWS.CERTIFICATES)
     } else if (target === 'learning') {
       setActiveView(VIEWS.LEARNING)
     } else if (target === 'gaps') {
@@ -194,6 +211,24 @@ export function App() {
             <span className="nav-btn-label">My Learning</span>
           </button>
 
+          {/* My Courses */}
+          <button
+            type="button"
+            className={`nav-btn ${activeView === VIEWS.MY_COURSES || activeView === VIEWS.COURSE_PLAYER ? 'nav-btn-active' : ''}`}
+            onClick={() => {
+              setActiveView(VIEWS.MY_COURSES)
+              setShowMobileSidebar(false)
+            }}
+          >
+            <div className="nav-btn-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+            </div>
+            <span className="nav-btn-label">My Courses</span>
+          </button>
+
           {/* Assessments with Dropdown Toggle */}
           <div className="nav-item-dropdown-wrap">
             <button
@@ -221,6 +256,24 @@ export function App() {
               </span>
             </button>
           </div>
+
+          {/* Certificates */}
+          <button
+            type="button"
+            className={`nav-btn ${activeView === VIEWS.CERTIFICATES ? 'nav-btn-active' : ''}`}
+            onClick={() => {
+              setActiveView(VIEWS.CERTIFICATES)
+              setShowMobileSidebar(false)
+            }}
+          >
+            <div className="nav-btn-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8" r="7" />
+                <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+              </svg>
+            </div>
+            <span className="nav-btn-label">Certificates</span>
+          </button>
 
           {/* Profile */}
           <button
@@ -432,7 +485,21 @@ export function App() {
 
           {activeView === VIEWS.GAPS && <GapAnalysis />}
 
-          {activeView === VIEWS.LEARNING && <Recommendations />}
+          {activeView === VIEWS.LEARNING && (
+            <Recommendations onOpenCourse={handleOpenCourse} />
+          )}
+
+          {activeView === VIEWS.MY_COURSES && (
+            <MyCourses onOpenCourse={handleOpenCourse} />
+          )}
+
+          {activeView === VIEWS.COURSE_PLAYER && (
+            <CoursePlayer
+              courseId={selectedCourseId}
+              initialLessonId={selectedLessonId}
+              onBack={() => setActiveView(VIEWS.MY_COURSES)}
+            />
+          )}
 
           {activeView === VIEWS.ASSESSMENTS && (
             <AssessmentsSection
@@ -440,6 +507,8 @@ export function App() {
               setActiveAssessment={setActiveAssessment}
             />
           )}
+
+          {activeView === VIEWS.CERTIFICATES && <Certificates />}
 
           {activeView === VIEWS.PROFILE && <Profile />}
 

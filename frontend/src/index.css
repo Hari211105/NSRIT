@@ -645,4 +645,45 @@
 .top-role-badge{margin-right:12px;display:flex;align-items:center}
 .review-course-item-card{background:var(--bg-card);border:1px solid var(--border-card);border-radius:14px;padding:20px;margin-bottom:14px;box-shadow:var(--shadow-sm)}
 
+/* Phase 14: Course Player & Certificate Printing */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-certificate, #printable-certificate * {
+    visibility: visible;
+  }
+  #printable-certificate {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20mm;
+    box-shadow: none;
+  }
+}
+
+.studio-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.studio-table th {
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--bg-card-subtle);
+  border-bottom: 1px solid var(--border-card);
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+.studio-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-main);
+}
+
+
 

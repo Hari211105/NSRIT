@@ -340,6 +340,67 @@ export const apiClient = {
 
   getAuditLogs: (limit = 50, offset = 0) =>
     request(`/admin/audit-logs?limit=${limit}&offset=${offset}`),
+
+  // ── Learner Courses & Lessons (Phase 14) ──
+
+  getMyCourses: () =>
+    request('/courses/my'),
+
+  enrollCourse: (courseId) =>
+    request(`/courses/${courseId}/enroll`, { method: 'POST' }),
+
+  getCourseModules: (courseId) =>
+    request(`/courses/${courseId}/modules`),
+
+  getCourseProgress: (courseId) =>
+    request(`/courses/${courseId}/progress`),
+
+  getCourseCertificate: (courseId) =>
+    request(`/courses/${courseId}/certificate`),
+
+  getLesson: (lessonId) =>
+    request(`/lessons/${lessonId}`),
+
+  completeLesson: (lessonId) =>
+    request(`/lessons/${lessonId}/complete`, { method: 'POST' }),
+
+  // ── Trainer Curriculum & Prerequisites (Phase 14) ──
+
+  getTrainerCurriculum: (courseId) =>
+    request(`/trainer/courses/${courseId}/curriculum`),
+
+  createTrainerModule: (courseId, data) =>
+    request(`/trainer/courses/${courseId}/modules`, { method: 'POST', body: data }),
+
+  updateTrainerModule: (moduleId, data) =>
+    request(`/trainer/modules/${moduleId}`, { method: 'PUT', body: data }),
+
+  deleteTrainerModule: (moduleId) =>
+    request(`/trainer/modules/${moduleId}`, { method: 'DELETE' }),
+
+  createTrainerLesson: (moduleId, data) =>
+    request(`/trainer/modules/${moduleId}/lessons`, { method: 'POST', body: data }),
+
+  updateTrainerLesson: (lessonId, data) =>
+    request(`/trainer/lessons/${lessonId}`, { method: 'PUT', body: data }),
+
+  deleteTrainerLesson: (lessonId) =>
+    request(`/trainer/lessons/${lessonId}`, { method: 'DELETE' }),
+
+  reorderTrainerCurriculum: (courseId, data) =>
+    request(`/trainer/courses/${courseId}/reorder`, { method: 'POST', body: data }),
+
+  getTrainerPrerequisites: (courseId) =>
+    request(`/trainer/courses/${courseId}/prerequisites`),
+
+  addTrainerPrerequisite: (courseId, prerequisiteCourseId) =>
+    request(`/trainer/courses/${courseId}/prerequisites`, {
+      method: 'POST',
+      body: { prerequisite_course_id: prerequisiteCourseId },
+    }),
+
+  removeTrainerPrerequisite: (courseId, prerequisiteId) =>
+    request(`/trainer/courses/${courseId}/prerequisites/${prerequisiteId}`, { method: 'DELETE' }),
 };
 
 export default apiClient;

@@ -5,7 +5,7 @@ import { apiClient } from '../services/api'
  * Displays personalized learning recommendations for the demo learner.
  * Shows summary cards, followed by ranked recommendation cards matching gaps.
  */
-export function Recommendations() {
+export function Recommendations({ onOpenCourse }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -101,7 +101,11 @@ export function Recommendations() {
         ) : (
           <div className="recommendation-list">
             {recommendations.map((rec) => (
-              <RecommendationCard key={`${rec.rank}-${rec.learning_resource.id}`} recommendation={rec} />
+              <RecommendationCard
+                key={`${rec.rank}-${rec.learning_resource.id}`}
+                recommendation={rec}
+                onOpenCourse={onOpenCourse}
+              />
             ))}
           </div>
         )}
@@ -115,7 +119,7 @@ export function Recommendations() {
 }
 
 /** Individual Recommendation Card */
-function RecommendationCard({ recommendation }) {
+function RecommendationCard({ recommendation, onOpenCourse }) {
   const {
     rank,
     competency_name,
@@ -126,6 +130,8 @@ function RecommendationCard({ recommendation }) {
     learning_resource,
     relevance_score,
     reason,
+    has_unmet_prerequisites,
+    prerequisite_warning,
   } = recommendation
 
   const sourceLabel = formatSourceLabel(learning_resource.source)
@@ -151,6 +157,23 @@ function RecommendationCard({ recommendation }) {
         <span className="source-label">Source: <strong>{sourceLabel}</strong></span>
         <span className="type-label">{learning_resource.resource_type} · {learning_resource.duration_hours} Hours</span>
       </div>
+
+      {/* Prerequisite warning banner */}
+      {has_unmet_prerequisites && prerequisite_warning && (
+        <div
+          style={{
+            background: 'rgba(245, 158, 11, 0.1)',
+            border: '1px solid #f59e0b',
+            borderRadius: '6px',
+            padding: '8px 12px',
+            fontSize: '0.825rem',
+            color: '#b45309',
+            margin: '10px 0',
+          }}
+        >
+          <strong>⚠️ Prerequisite Advisory:</strong> {prerequisite_warning}
+        </div>
+      )}
 
       {learning_resource.description && (
         <p className="rec-description">{learning_resource.description}</p>
@@ -187,21 +210,30 @@ function RecommendationCard({ recommendation }) {
       </div>
 
       {/* Action button */}
-      <div className="rec-action-bar">
+      <div className="rec-action-bar" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        {learning_resource.course_id && onOpenCourse && (
+          <button
+            type="button"
+            className="action-pill-btn btn-primary"
+            onClick={() => onOpenCourse(learning_resource.course_id)}
+          >
+            Start Course Curriculum →
+          </button>
+        )}
         {learning_resource.url ? (
           <a
             href={learning_resource.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn-primary"
+            className={`btn ${learning_resource.course_id ? 'btn-secondary' : 'btn-primary'}`}
           >
-            View Resource
+            External Resource ↗
           </a>
-        ) : (
+        ) : !learning_resource.course_id ? (
           <span className="demo-link-pending">
             Demo resource — integration link pending
           </span>
-        )}
+        ) : null}
       </div>
     </div>
   )
