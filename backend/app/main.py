@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import engine, Base, ensure_schema
 import app.models  # noqa: F401
-from app.routes import roles, competencies, learner, gaps, catalog, recommendations, documents, diagnostic, auth, sectors, courses
+from app.routes import roles, competencies, learner, gaps, catalog, recommendations, documents, diagnostic, auth, sectors, courses, trainer, admin
 
 # ---------------------------------------------------------------
 # Security Validation: Refuse startup in production if secret is insecure
@@ -29,6 +29,27 @@ if settings.ENVIRONMENT != "production":
 # ---------------------------------------------------------------
 from app.seed import seed_on_startup_if_needed
 seed_on_startup_if_needed()
+
+# ---------------------------------------------------------------
+# Phase 13 - Promote initial administrator on startup if configured
+# In production, sets account_type='ADMIN' for the user matching INITIAL_ADMIN_EMAIL.
+# ---------------------------------------------------------------
+def promote_initial_admin_if_configured():
+    if settings.INITIAL_ADMIN_EMAIL and settings.INITIAL_ADMIN_EMAIL.strip():
+        admin_email = settings.INITIAL_ADMIN_EMAIL.strip().lower()
+        from app.database import SessionLocal
+        from app.models import User
+        db = SessionLocal()
+        try:
+            target_user = db.query(User).filter(User.email == admin_email).first()
+            if target_user and target_user.account_type != "ADMIN":
+                target_user.account_type = "ADMIN"
+                db.commit()
+                print(f"  Promoted initial admin user: {admin_email}")
+        finally:
+            db.close()
+
+promote_initial_admin_if_configured()
 
 # ---------------------------------------------------------------
 # FastAPI application
@@ -64,6 +85,8 @@ app.include_router(diagnostic.router,     prefix=PREFIX)
 app.include_router(auth.router,           prefix=PREFIX)
 app.include_router(sectors.router,        prefix=PREFIX)
 app.include_router(courses.router,        prefix=PREFIX)
+app.include_router(trainer.router,        prefix=PREFIX)
+app.include_router(admin.router,          prefix=PREFIX)
 
 
 

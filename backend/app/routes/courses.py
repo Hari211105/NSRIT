@@ -33,6 +33,7 @@ class CourseBrief(BaseModel):
     name: str
     description: Optional[str] = None
     category: str
+    status: str = "PUBLISHED"
     sector_id: Optional[int] = None
     level_hint: Optional[str] = "Beginner"
     estimated_hours: int = 20
@@ -49,6 +50,7 @@ class CourseDetail(BaseModel):
     name: str
     description: Optional[str] = None
     category: str
+    status: str = "PUBLISHED"
     sector_id: Optional[int] = None
     level_hint: Optional[str] = "Beginner"
     estimated_hours: int = 20
@@ -68,10 +70,11 @@ def list_courses(
     db: Session = Depends(get_db),
 ):
     """
-    List all active courses. Protected by JWT authentication.
+    List all published active courses. Protected by JWT authentication.
     Supports filtering by category, sector_id, and free-text search.
+    Learners and default catalog listings only ever see PUBLISHED courses.
     """
-    query = db.query(Course).filter(Course.active == True)
+    query = db.query(Course).filter(Course.active == True, Course.status == "PUBLISHED")
     if category:
         query = query.filter(Course.category == category.upper())
     if sector_id:
@@ -98,6 +101,7 @@ def list_courses(
                 name=c.name,
                 description=c.description,
                 category=c.category,
+                status=c.status or "PUBLISHED",
                 sector_id=c.sector_id,
                 level_hint=c.level_hint or "Beginner",
                 estimated_hours=getattr(c, "estimated_hours", 20) or 20,
@@ -114,13 +118,27 @@ def get_course(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get course details including mapped competencies."""
+    """
+    Get course details including mapped competencies.
+    Non-published courses (DRAFT, PENDING_REVIEW, ARCHIVED) can only be viewed
+    by their trainer creator or by administrators.
+    """
     course = db.query(Course).filter(Course.id == course_id, Course.active == True).first()
     if not course:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Course with ID {course_id} not found.",
         )
+
+    # Visibility check: if course is not PUBLISHED, only creator or admin can view
+    if course.status != "PUBLISHED":
+        user_type = getattr(current_user, "account_type", "LEARNER") or "LEARNER"
+        is_creator = (course.created_by == current_user.id)
+        if user_type != "ADMIN" and not (user_type == "TRAINER" and is_creator):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Course with ID {course_id} not found.",
+            )
 
     mappings = (
         db.query(CourseCompetency)
@@ -146,6 +164,7 @@ def get_course(
         name=course.name,
         description=course.description,
         category=course.category,
+        status=course.status or "PUBLISHED",
         sector_id=course.sector_id,
         level_hint=course.level_hint or "Beginner",
         estimated_hours=getattr(course, "estimated_hours", 20) or 20,
